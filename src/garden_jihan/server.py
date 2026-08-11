@@ -8,6 +8,7 @@ from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
+from garden_jihan.analysis.quran import QuranReference
 from garden_jihan.config import Settings
 from garden_jihan.jobs import JobManager
 from garden_jihan.media.probe import probe_media
@@ -17,6 +18,7 @@ from garden_jihan.models import AnalyzeRequest, ExportRequest, SourceInspectRequ
 from garden_jihan.security import LocalSecurityMiddleware, new_session_token, safe_job_path
 
 ALLOWED_UPLOAD_EXTENSIONS = {".mp4", ".mov", ".mkv", ".webm", ".m4v"}
+MAX_QURAN_REFERENCE_BYTES = 8 * 1024 * 1024
 
 
 def create_app(port: int, settings: Settings | None = None, session_token: str | None = None) -> FastAPI:
@@ -39,6 +41,37 @@ def create_app(port: int, settings: Settings | None = None, session_token: str |
     @app.get("/api/health")
     async def health():
         return {"ok": True, "local": True, "version": "0.1.0"}
+
+    @app.get("/api/quran/reference")
+    async def quran_reference_status():
+        reference = QuranReference(settings.quran_reference)
+        return {
+            "available": reference.available,
+            "verses": len(reference.records),
+            "source": reference.source,
+        }
+
+    @app.post("/api/quran/reference")
+    async def install_quran_reference(file: Annotated[UploadFile, File()]):
+        suffix = Path(file.filename or "").suffix.lower()
+        if suffix not in {".txt", ".text"}:
+            raise HTTPException(status_code=415, detail="Choose the official Tanzil UTF-8 text file")
+        raw = await file.read(MAX_QURAN_REFERENCE_BYTES + 1)
+        if len(raw) > MAX_QURAN_REFERENCE_BYTES:
+            raise HTTPException(status_code=413, detail="Quran reference file is unexpectedly large")
+        try:
+            text = raw.decode("utf-8-sig")
+        except UnicodeDecodeError as exc:
+            raise HTTPException(status_code=400, detail="Quran reference must be UTF-8 text") from exc
+        try:
+            reference = QuranReference.install_tanzil_text(text, settings.quran_reference)
+        except (ValueError, TypeError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {
+            "available": reference.available,
+            "verses": len(reference.records),
+            "source": reference.source,
+        }
 
     @app.post("/api/source/inspect")
     async def inspect(payload: SourceInspectRequest):
