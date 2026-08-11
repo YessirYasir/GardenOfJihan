@@ -85,12 +85,26 @@ class JobManager:
     ) -> JobState:
         job = self.get(job_id)
         job.source_path = path
+        self._set(job, "queued", 0, "Queued for local analysis")
         self._pool.submit(self._analyze, job.id, path, mode, min_s, max_s, max_clips)
         return job
+
+    def mark_upload_ready(self, job: JobState, path: Path, project_name: str) -> None:
+        with self._lock:
+            job.source_path = path
+            job.status = "uploaded"
+            job.progress = 0
+            job.message = "Local upload ready for analysis"
+            job.project.name = project_name
+            job.updated_at = datetime.now(UTC)
+
+    def mark_upload_failed(self, job: JobState) -> None:
+        self._set(job, "failed", 0, "Local upload failed safely")
 
     def _set(self, job: JobState, status: str, progress: int, message: str):
         with self._lock:
             job.status, job.progress, job.message = status, progress, message
+            job.updated_at = datetime.now(UTC)
 
     def _run_url(
         self,
@@ -353,6 +367,13 @@ class JobManager:
         if not job:
             raise KeyError(job_id)
         return job
+
+    def has_active_work(self) -> bool:
+        with self._lock:
+            return any(job.status in {"queued", "running"} for job in self._jobs.values())
+
+    def shutdown(self) -> None:
+        self._pool.shutdown(wait=True, cancel_futures=True)
 
     def public(self, job_id: str) -> JobPublic:
         job = self.get(job_id)

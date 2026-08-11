@@ -211,3 +211,10 @@ class ExportManager:
             if not job:
                 raise KeyError(export_id)
             return job.public()
+
+    def has_active_work(self) -> bool:
+        with self._lock:
+            return any(job.status in {"queued", "rendering"} for job in self._jobs.values())
+
+    def shutdown(self) -> None:
+        self._pool.shutdown(wait=True, cancel_futures=True)

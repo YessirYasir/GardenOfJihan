@@ -75,7 +75,13 @@ def run() -> None:
         raise RuntimeError("Garden of Jihan must bind to 127.0.0.1 in desktop mode")
     port = _requested_port()
     token = new_session_token()
-    app = create_app(port=port, settings=settings, session_token=token)
+    shutdown_requested = threading.Event()
+    app = create_app(
+        port=port,
+        settings=settings,
+        session_token=token,
+        shutdown_callback=shutdown_requested.set,
+    )
     LOGGER.info("Starting local interface on 127.0.0.1:%s", port)
 
     if os.getenv("GOJ_NO_BROWSER", "0") != "1":
@@ -85,14 +91,22 @@ def run() -> None:
 
         threading.Thread(target=open_ui, daemon=True).start()
 
-    uvicorn.run(
-        app,
+    config = uvicorn.Config(
+        app=app,
         host="127.0.0.1",
         port=port,
         log_level="warning",
         access_log=False,
         log_config=None,
     )
+    server = uvicorn.Server(config)
+
+    def stop_when_requested():
+        shutdown_requested.wait()
+        server.should_exit = True
+
+    threading.Thread(target=stop_when_requested, daemon=True).start()
+    server.run()
 
 
 def main() -> None:

@@ -94,3 +94,10 @@ class YouTubePublishManager:
         if not job:
             raise KeyError(job_id)
         return job
+
+    def has_active_work(self) -> bool:
+        with self._lock:
+            return any(job.status in {"queued", "uploading"} for job in self._jobs.values())
+
+    def shutdown(self) -> None:
+        self._pool.shutdown(wait=True, cancel_futures=True)

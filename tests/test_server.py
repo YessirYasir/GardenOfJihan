@@ -33,6 +33,90 @@ def test_mutation_requires_origin_and_token(tmp_path):
         assert response.status_code == 403
 
 
+def test_desktop_quit_waits_for_active_work_then_invokes_launcher_callback(tmp_path):
+    shutdown_requested = threading.Event()
+    settings = Settings(app_data=tmp_path)
+    app = create_app(
+        port=8765,
+        settings=settings,
+        session_token="test-token",
+        shutdown_callback=shutdown_requested.set,
+    )
+    job = app.state.jobs.create_upload_job()
+    headers = {"origin": "http://127.0.0.1:8765", "x-goj-token": "test-token"}
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        busy = client.post("/api/app/quit", headers=headers)
+        assert busy.status_code == 409
+        assert "analysis" in busy.json()["detail"]
+        job.status = "uploaded"
+        closing = client.post("/api/app/quit", headers=headers)
+        assert closing.status_code == 202
+        assert closing.json()["closing"] is True
+        assert shutdown_requested.wait(timeout=1)
+
+
+def test_quit_endpoint_is_not_available_outside_desktop_launcher(tmp_path):
+    app = create_app(
+        port=8765,
+        settings=Settings(app_data=tmp_path),
+        session_token="test-token",
+    )
+    headers = {"origin": "http://127.0.0.1:8765", "x-goj-token": "test-token"}
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        response = client.post("/api/app/quit", headers=headers)
+
+    assert response.status_code == 409
+    assert "Windows desktop launcher" in response.json()["detail"]
+
+
+def test_uploaded_source_is_idle_until_analysis_starts(tmp_path):
+    shutdown_requested = threading.Event()
+    app = create_app(
+        port=8765,
+        settings=Settings(app_data=tmp_path),
+        session_token="test-token",
+        shutdown_callback=shutdown_requested.set,
+    )
+    headers = {"origin": "http://127.0.0.1:8765", "x-goj-token": "test-token"}
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        uploaded = client.post(
+            "/api/upload",
+            headers=headers,
+            files={"file": ("family-video.mp4", b"video-bytes", "video/mp4")},
+        )
+        job = app.state.jobs.get(uploaded.json()["upload_id"])
+        closing = client.post("/api/app/quit", headers=headers)
+
+    assert uploaded.status_code == 200
+    assert job.status == "uploaded"
+    assert job.project.name == "family-video"
+    assert closing.status_code == 202
+
+
+def test_failed_upload_does_not_leave_quit_permanently_blocked(tmp_path):
+    shutdown_requested = threading.Event()
+    app = create_app(
+        port=8765,
+        settings=Settings(app_data=tmp_path, max_upload_bytes=3),
+        session_token="test-token",
+        shutdown_callback=shutdown_requested.set,
+    )
+    headers = {"origin": "http://127.0.0.1:8765", "x-goj-token": "test-token"}
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        failed = client.post(
+            "/api/upload",
+            headers=headers,
+            files={"file": ("too-large.mp4", b"four", "video/mp4")},
+        )
+        active_after_failure = app.state.jobs.has_active_work()
+        closing = client.post("/api/app/quit", headers=headers)
+
+    assert failed.status_code == 413
+    assert active_after_failure is False
+    assert closing.status_code == 202
+
+
 def test_quran_reference_status_starts_unavailable(tmp_path):
     settings = Settings(app_data=tmp_path)
     app = create_app(port=8765, settings=settings, session_token="test-token")

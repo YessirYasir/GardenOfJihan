@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import html
 import json
+from collections.abc import Callable
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -60,10 +62,29 @@ def _quran_reference_status(reference: QuranReference) -> dict:
     }
 
 
-def create_app(port: int, settings: Settings | None = None, session_token: str | None = None) -> FastAPI:
+def create_app(
+    port: int,
+    settings: Settings | None = None,
+    session_token: str | None = None,
+    shutdown_callback: Callable[[], None] | None = None,
+) -> FastAPI:
     settings = settings or Settings()
     token = session_token or new_session_token()
-    app = FastAPI(title="Garden of Jihan", docs_url=None, redoc_url=None, openapi_url=None)
+
+    @asynccontextmanager
+    async def lifespan(instance: FastAPI):
+        yield
+        instance.state.youtube_uploads.shutdown()
+        instance.state.exports.shutdown()
+        instance.state.jobs.shutdown()
+
+    app = FastAPI(
+        title="Garden of Jihan",
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+        lifespan=lifespan,
+    )
     app.state.settings = settings
     app.state.session_token = token
     app.state.jobs = JobManager(settings)
@@ -116,6 +137,22 @@ def create_app(port: int, settings: Settings | None = None, session_token: str |
             "auto_framing_available": auto_framing_available,
             "credential_protection_available": credential_protection_available(),
         }
+
+    @app.post("/api/app/quit", status_code=202)
+    async def quit_app(background_tasks: BackgroundTasks):
+        if shutdown_callback is None:
+            raise HTTPException(
+                status_code=409,
+                detail="App shutdown is available only from the Windows desktop launcher",
+            )
+        if app.state.jobs.has_active_work():
+            raise HTTPException(status_code=409, detail="Wait for local analysis to finish")
+        if app.state.exports.has_active_work():
+            raise HTTPException(status_code=409, detail="Wait for local rendering to finish")
+        if app.state.youtube_uploads.has_active_work():
+            raise HTTPException(status_code=409, detail="Wait for the YouTube upload to finish")
+        background_tasks.add_task(shutdown_callback)
+        return {"closing": True, "message": "Garden of Jihan is closing safely"}
 
     @app.get("/api/quran/reference")
     async def quran_reference_status():
@@ -216,9 +253,10 @@ def create_app(port: int, settings: Settings | None = None, session_token: str |
                     handle.write(chunk)
         except Exception:
             destination.unlink(missing_ok=True)
+            app.state.jobs.mark_upload_failed(job)
             raise
-        job.source_path = destination
-        job.project.name = (Path(file.filename or "Local video").stem[:80] or "Local video")
+        project_name = Path(file.filename or "Local video").stem[:80] or "Local video"
+        app.state.jobs.mark_upload_ready(job, destination, project_name)
         return {"upload_id": job.id, "filename": destination.name, "bytes": total}
 
     @app.post("/api/jobs/analyze")

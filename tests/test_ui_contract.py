@@ -47,6 +47,16 @@ def test_analysis_progress_is_accessible_and_does_not_scroll_on_launch():
     assert ".trust-row{justify-content:center;overflow:visible;flex-wrap:wrap" in app_css
 
 
+def test_desktop_ui_has_an_explicit_safe_quit_control():
+    html = _ui_text("index.html")
+    app_js = _ui_text("app.js")
+
+    assert 'id="quitApp"' in html
+    assert "Saved projects stay on this computer" in app_js
+    assert "api('/api/app/quit',{method:'POST'})" in app_js
+    assert "Garden of Jihan is closed" in app_js
+
+
 def test_caption_controls_offer_honest_acoustic_word_tracking():
     html = _ui_text("index.html")
     app_js = _ui_text("app.js")
