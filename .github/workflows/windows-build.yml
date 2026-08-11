@@ -2,6 +2,12 @@ name: Windows build
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'scripts/build-windows.ps1'
+      - 'pyproject.toml'
+      - '.github/workflows/windows-build.yml'
   push:
     tags:
       - 'v*'
@@ -18,13 +24,44 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
-      - shell: pwsh
+      - name: Build Windows package
+        shell: pwsh
         run: .\scripts\build-windows.ps1
-      - name: Smoke-test packaged executable
+
+      - name: Verify packaged files
         shell: pwsh
         run: |
           if (-not (Test-Path "dist\GardenOfJihan\GardenOfJihan.exe")) { throw "Executable missing" }
           if (-not (Test-Path "dist\GardenOfJihan\_internal\bin\ffmpeg.exe") -and -not (Test-Path "dist\GardenOfJihan\bin\ffmpeg.exe")) { throw "Bundled ffmpeg missing" }
+          if (-not (Test-Path "dist\GardenOfJihan\_internal\bin\ffprobe.exe") -and -not (Test-Path "dist\GardenOfJihan\bin\ffprobe.exe")) { throw "Bundled ffprobe missing" }
+          if (-not (Test-Path "dist\GardenOfJihan-Windows-x64.zip")) { throw "Release ZIP missing" }
+
+      - name: Smoke-test packaged executable and UI
+        shell: pwsh
+        run: |
+          $env:GOJ_PORT = "8765"
+          $env:GOJ_NO_BROWSER = "1"
+          $process = Start-Process -FilePath "dist\GardenOfJihan\GardenOfJihan.exe" -PassThru
+          try {
+            $healthy = $false
+            for ($i = 0; $i -lt 60; $i++) {
+              Start-Sleep -Seconds 1
+              if ($process.HasExited) { throw "GardenOfJihan.exe exited before becoming healthy" }
+              try {
+                $health = Invoke-RestMethod -Uri "http://127.0.0.1:8765/api/health" -TimeoutSec 3
+                if ($health.ok -eq $true -and $health.local -eq $true) {
+                  $healthy = $true
+                  break
+                }
+              } catch {}
+            }
+            if (-not $healthy) { throw "Packaged application did not become healthy in time" }
+            $home = Invoke-WebRequest -Uri "http://127.0.0.1:8765/" -TimeoutSec 5
+            if ($home.Content -notmatch "Garden of Jihan") { throw "Packaged UI did not load" }
+          } finally {
+            if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }
+          }
+
       - uses: actions/upload-artifact@v4
         with:
           name: GardenOfJihan-Windows-x64
