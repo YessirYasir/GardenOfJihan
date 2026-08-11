@@ -33,16 +33,24 @@ pyinstaller `
   src/garden_jihan/launcher.py
 
 $readme = @"
-Garden of Jihan — Windows Release Candidate
+Garden of Jihan — Windows Public Beta
 
-1. Extract this ZIP to a normal folder.
+GET STARTED
+1. Extract this ZIP to a normal folder such as Documents\GardenOfJihan.
 2. Open GardenOfJihan.exe.
-3. Your browser opens the local Garden of Jihan interface.
+3. Your default browser opens the private local Garden of Jihan interface.
 4. Paste a supported video URL or choose a local video.
-5. The first AI analysis downloads the local Whisper model once and caches it on this PC.
+5. Choose the analysis mode and clip settings, then click Find the best moments.
+6. Preview, adjust, keep, and export your clips.
 
-Garden of Jihan binds only to 127.0.0.1. FFmpeg and ffprobe are bundled.
-No paid AI API key, subscription, credits, or token balance is required.
+FIRST AI ANALYSIS
+The first analysis downloads the local Whisper speech model once and caches it on this PC. This can take a few minutes depending on the internet connection. Later analyses reuse the cached model.
+
+PRIVACY
+Garden of Jihan binds only to 127.0.0.1. Video processing happens on this PC. FFmpeg and ffprobe are bundled. There is no paid AI API key, subscription, credits, token balance, or telemetry requirement.
+
+WINDOWS WARNING
+This early open-source beta is not yet Authenticode code-signed. Windows SmartScreen may display an Unknown publisher warning on some PCs. Download releases only from the official YessirYasir/GardenOfJihan GitHub repository and compare the published SHA256 checksum if desired.
 
 Important: Process and republish only media you have permission to use.
 "@
