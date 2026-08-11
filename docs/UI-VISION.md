@@ -7,7 +7,7 @@ During the first runnable engineering build, some of the original visual depth w
 ## Visual language to preserve
 
 - Light, airy interface rather than a dark dashboard.
-- `جهان` mark beside the Garden of Jihan name.
+- `جيهان` mark beside the Garden of Jihan name.
 - Large, varied flowerbeds and a sense of a broad garden landscape behind the workspace.
 - Soft hills, sunlight, atmospheric depth, and translucent glass-like working panels.
 - Mixed flower colors rather than a single accent color.
