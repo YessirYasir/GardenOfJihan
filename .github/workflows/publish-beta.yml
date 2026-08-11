@@ -1,23 +1,18 @@
-name: Windows build
+name: Publish Windows beta
 
 on:
-  workflow_dispatch:
-  pull_request:
-    paths:
-      - 'src/**'
-      - 'scripts/build-windows.ps1'
-      - 'scripts/version-info.txt'
-      - 'pyproject.toml'
-      - '.github/workflows/windows-build.yml'
   push:
-    tags:
-      - 'v*'
+    branches: [main]
+    paths:
+      - '.release-beta'
 
 permissions:
-  contents: read
+  contents: write
+  id-token: write
+  attestations: write
 
 jobs:
-  build:
+  publish-beta:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,7 +20,8 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
-      - name: Build Windows package
+
+      - name: Build Windows beta
         shell: pwsh
         run: .\scripts\build-windows.ps1
 
@@ -86,33 +82,27 @@ jobs:
         run: |
           $hash = (Get-FileHash "dist\GardenOfJihan-Windows-x64.zip" -Algorithm SHA256).Hash.ToLower()
           "$hash  GardenOfJihan-Windows-x64.zip" | Set-Content "dist\GardenOfJihan-Windows-x64.sha256" -Encoding ascii
+          Get-Content "dist\GardenOfJihan-Windows-x64.sha256"
 
-      - uses: actions/upload-artifact@v4
+      - name: Attest release build provenance
+        uses: actions/attest-build-provenance@v3
         with:
-          name: GardenOfJihan-Windows-x64
-          path: |
-            dist/GardenOfJihan-Windows-x64.zip
-            dist/GardenOfJihan-Windows-x64.sha256
-          if-no-files-found: error
+          subject-path: dist/GardenOfJihan-Windows-x64.zip
 
-  publish:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: GardenOfJihan-Windows-x64
-          path: release
-      - name: Publish GitHub release
+      - name: Publish GitHub prerelease
+        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            "release/GardenOfJihan-Windows-x64.zip" \
-            "release/GardenOfJihan-Windows-x64.sha256" \
-            --repo "$GITHUB_REPOSITORY" \
-            --title "Garden of Jihan $GITHUB_REF_NAME" \
-            --generate-notes
+          $tag = "v0.1.0-beta.1"
+          if (gh release view $tag --repo $env:GITHUB_REPOSITORY 2>$null) {
+            throw "Release $tag already exists. Bump the beta version before publishing again."
+          }
+          gh release create $tag `
+            "dist\GardenOfJihan-Windows-x64.zip" `
+            "dist\GardenOfJihan-Windows-x64.sha256" `
+            --repo $env:GITHUB_REPOSITORY `
+            --target $env:GITHUB_SHA `
+            --title "Garden of Jihan v0.1.0 Beta 1" `
+            --prerelease `
+            --notes "First public Windows beta of Garden of Jihan. Download the ZIP, extract it, and open GardenOfJihan.exe. No Python, FFmpeg, subscription, credits, or paid AI API is required. This release passed CI, Ruff, Bandit, dependency audit, CodeQL, packaged-file verification, a clean-Windows executable/UI smoke test, and a Microsoft Defender Antivirus scan. A SHA256 checksum and GitHub build-provenance attestation are published for verification. Advanced Qur'an/Qira'at recognition, Somali corpus validation, automatic speaker tracking, styled captions, and direct social publishing are still under active development."

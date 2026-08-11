@@ -32,6 +32,7 @@ dev = [
 ]
 windows = [
   "pyinstaller>=6.11,<7",
+  "pillow>=11,<13",
 ]
 
 [project.scripts]
