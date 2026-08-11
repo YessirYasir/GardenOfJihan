@@ -95,7 +95,8 @@ function renderCandidates(){
   if(currentJob)document.getElementById('sourcePreview').src=`/api/jobs/${currentJob}/source`;
   candidates.forEach((c,index)=>{
     const card=document.createElement('article');card.className='candidate';
-    card.innerHTML=`<div class="candidate-head"><div><h3>${escapeHtml(c.title)} #${index+1}</h3><small>${formatTime(c.start)} → ${formatTime(c.end)}</small></div><div class="score">${Math.round(c.score)}</div></div><ul class="reason-list">${c.reasons.map(r=>`<li>${escapeHtml(r)}</li>`).join('')}</ul><div class="candidate-actions"><button class="secondary preview">Preview</button><button class="keep ${selected.has(c.id)?'on':''}">${selected.has(c.id)?'Kept':'Keep'}</button></div>`;
+    const breakdown=Object.entries(c.score_breakdown||{}).filter(([,v])=>Number(v)>0).sort((a,b)=>b[1]-a[1]).slice(0,4);
+    card.innerHTML=`<div class="candidate-head"><div><h3>${escapeHtml(c.title)} #${index+1}</h3><small>${formatTime(c.start)} → ${formatTime(c.end)}</small></div><div class="score">${Math.round(c.score)}</div></div><div class="score-breakdown">${breakdown.map(([k,v])=>`<span><b>${escapeHtml(scoreLabel(k))}</b>${Math.round(v)}</span>`).join('')}</div><ul class="reason-list">${c.reasons.map(r=>`<li>${escapeHtml(r)}</li>`).join('')}</ul><div class="candidate-actions"><button class="secondary preview">Preview</button><button class="keep ${selected.has(c.id)?'on':''}">${selected.has(c.id)?'Kept':'Keep'}</button></div>`;
     card.querySelector('.preview').addEventListener('click',()=>{const video=document.getElementById('sourcePreview');video.currentTime=c.start;video.play();setTimeout(()=>{if(video.currentTime>=c.end)video.pause()},Math.max(1000,(c.end-c.start)*1000));video.scrollIntoView({behavior:'smooth',block:'center'});});
     const keep=card.querySelector('.keep');keep.addEventListener('click',()=>{if(selected.has(c.id))selected.delete(c.id);else selected.add(c.id);keep.classList.toggle('on',selected.has(c.id));keep.textContent=selected.has(c.id)?'Kept':'Keep';syncExportSummary();});
     grid.appendChild(card);
@@ -120,6 +121,7 @@ window.addEventListener('scroll',()=>{
   document.querySelector('.hill-back').style.transform=`translateY(${y*.025}px)`;
   document.querySelector('.hill-front').style.transform=`translateY(${y*.05}px)`;
 });
+function scoreLabel(key){return ({hook:'Hook',emotion:'Emotion',curiosity:'Curiosity',payoff:'Payoff',completeness:'Complete',density:'Density',novelty:'Novelty',audio:'Audio',visual:'Visual',replay:'Replay'}[key]||key);}
 function formatTime(sec){sec=Math.max(0,Math.floor(sec));const m=Math.floor(sec/60);const s=sec%60;return `${m}:${String(s).padStart(2,'0')}`;}
 function escapeHtml(value){return String(value).replace(/[&<>'"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));}
 showStep(0);
