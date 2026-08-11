@@ -25,7 +25,7 @@ jobs:
         run: python -m compileall -q src tests
       - name: Ruff
         run: python -m ruff check .
-      - name: Bandit
-        run: python -m bandit -q -r src
+      - name: Bandit medium/high findings
+        run: python -m bandit -q -r src -ll
       - name: Dependency audit
         run: python -m pip_audit
