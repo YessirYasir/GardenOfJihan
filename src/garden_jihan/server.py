@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Annotated
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
@@ -14,7 +15,6 @@ from garden_jihan.media.render import render_clip
 from garden_jihan.media.sources import inspect_source
 from garden_jihan.models import AnalyzeRequest, ExportRequest, SourceInspectRequest
 from garden_jihan.security import LocalSecurityMiddleware, new_session_token, safe_job_path
-
 
 ALLOWED_UPLOAD_EXTENSIONS = {".mp4", ".mov", ".mkv", ".webm", ".m4v"}
 
@@ -55,7 +55,7 @@ def create_app(port: int, settings: Settings | None = None, session_token: str |
         }
 
     @app.post("/api/upload")
-    async def upload(request: Request, file: UploadFile = File(...)):
+    async def upload(request: Request, file: Annotated[UploadFile, File()]):
         content_length = request.headers.get("content-length")
         if content_length and int(content_length) > settings.max_upload_bytes + 1024 * 1024:
             raise HTTPException(status_code=413, detail="Upload is too large")
@@ -88,14 +88,23 @@ def create_app(port: int, settings: Settings | None = None, session_token: str |
         try:
             if payload.url:
                 job = app.state.jobs.submit_url(
-                    str(payload.url), payload.mode, payload.min_clip_seconds, payload.max_clip_seconds, payload.max_clips
+                    str(payload.url),
+                    payload.mode,
+                    payload.min_clip_seconds,
+                    payload.max_clip_seconds,
+                    payload.max_clips,
                 )
             else:
                 source_job = app.state.jobs.get(payload.upload_id)
                 if not source_job.source_path:
                     raise ValueError("Uploaded source is missing")
                 job = app.state.jobs.submit_uploaded(
-                    source_job.id, source_job.source_path, payload.mode, payload.min_clip_seconds, payload.max_clip_seconds, payload.max_clips
+                    source_job.id,
+                    source_job.source_path,
+                    payload.mode,
+                    payload.min_clip_seconds,
+                    payload.max_clip_seconds,
+                    payload.max_clips,
                 )
         except (KeyError, ValueError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -151,7 +160,14 @@ def create_app(port: int, settings: Settings | None = None, session_token: str |
             filename = f"clip_{index:02d}_{candidate.id}.mp4"
             destination = output_dir / filename
             try:
-                render_clip(job.source_path, destination, start, end, payload.aspect)
+                render_clip(
+                    job.source_path,
+                    destination,
+                    start,
+                    end,
+                    payload.aspect,
+                    payload.framing,
+                )
             except Exception as exc:
                 raise HTTPException(status_code=500, detail=f"Render failed: {exc}") from exc
             files.append({"name": filename, "url": f"/api/jobs/{job.id}/output/{filename}"})
