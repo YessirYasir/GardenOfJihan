@@ -4,21 +4,15 @@
 
 Garden of Jihan is a free, open-source, **local-first Windows application** that turns long-form video into ranked short-form clip candidates through a calm browser-style interface.
 
-## Download for Windows
+## Windows release status
 
-**Public beta:** [Download GardenOfJihan-Windows-x64.zip](https://github.com/YessirYasir/GardenOfJihan/releases/download/v0.1.0-beta.1/GardenOfJihan-Windows-x64.zip)
+**Public Windows download is temporarily withheld while trusted code signing and Microsoft Store distribution are being completed.**
 
-No Python, FFmpeg, Git, subscription, credits, or paid AI API is required.
+The application itself is already building and launching successfully on clean Windows runners, but Garden of Jihan will not intentionally publish an unsigned EXE as the recommended end-user download. The release pipeline now requires a valid Authenticode signature before a public release can be created.
 
-1. Download the ZIP from the link above.
-2. Extract the ZIP to a normal folder.
-3. Open `GardenOfJihan.exe`.
-4. Garden of Jihan opens its private local interface in your default browser.
-5. Paste a supported video link or choose a local video and begin.
+Once the signed release is ready, this section will become the main one-click install/download entry point. End users will not need Python, FFmpeg, Git, a subscription, credits, or a paid AI API.
 
-The first AI analysis downloads the local Whisper model once and caches it on that PC. Video analysis and rendering then run locally. Every official beta release is built from this public repository by GitHub Actions, smoke-tested on a clean Windows runner, scanned with Microsoft Defender Antivirus, published with a SHA256 checksum, and given a GitHub build-provenance attestation.
-
-The project is also preparing free open-source trusted code signing through SignPath Foundation. Until that approval is active, a new unsigned beta can still receive a Windows SmartScreen **Unknown publisher** warning even when the release scan and automated checks are clean. See the project [`Code signing policy`](CODE_SIGNING.md).
+The first AI analysis downloads the local Whisper model once and caches it on that PC. Video analysis and rendering then run locally.
 
 The project is designed around four principles:
 
@@ -27,7 +21,7 @@ The project is designed around four principles:
 - **Multilingual by design:** English, Arabic, and Somali are first-class modes.
 - **Faithful Qur'an workflows:** Qur'anic recognition must use verified reference data and fail safely when confidence is insufficient.
 
-> **Status: public beta.** The Windows application, local security boundary, source validation, Intelligence V2 ranking, manual timing, framing controls, export pipeline, bundled media tools, CI/security scans, and clean-Windows executable smoke tests are operational. Advanced Qur'an/Qira'at reference recognition, Somali corpus validation, automatic speaker tracking, caption styling, and direct platform publishing remain active development areas and are not represented as complete yet.
+> **Status: internal/public-beta candidate.** The Windows application, local security boundary, source validation, Intelligence V2 ranking, manual timing, framing controls, export pipeline, bundled media tools, CI/security scans, clean-Windows executable smoke tests, and Microsoft Defender release scans are operational. Trusted Windows distribution, advanced Qur'an/Qira'at recognition, Somali corpus validation, automatic speaker tracking, caption styling, and direct platform publishing remain active development areas.
 
 ## Current workflow
 
@@ -45,11 +39,11 @@ Garden of Jihan does **not** include features whose purpose is to evade platform
 
 ## UI direction
 
-The app opens locally in the user's default browser with a light garden aesthetic: moving petals, parallax flowerbeds, soft animated landscapes, and clear six-step navigation. Motion automatically reduces when the operating system requests reduced motion.
+The app opens locally in the user's default browser with a light garden aesthetic: layered flowerbeds, soft animated landscapes, and slow swaying falling flowers behind the six-step workflow. Motion automatically reduces when the operating system requests reduced motion.
 
 ## Development setup
 
-End users should use the Windows release above. Contributors can run from source with Python 3.11 or 3.12:
+Contributors can run from source with Python 3.11 or 3.12:
 
 ```powershell
 python -m venv .venv
@@ -75,9 +69,10 @@ Garden of Jihan is designed as local software, not an internet-facing web servic
 - No telemetry by default
 - Temporary-job cleanup
 - GitHub Actions CI, Bandit, dependency audit, and CodeQL checks
-- Windows release smoke-tested by launching the packaged executable on a clean GitHub Windows runner
-- Microsoft Defender Antivirus scan before public release
-- SHA256 checksum and GitHub build-provenance attestation for the downloadable ZIP
+- Windows package smoke-tested by launching the packaged executable on a clean GitHub Windows runner
+- Microsoft Defender Antivirus scan before release
+- SHA256 checksum and GitHub build-provenance attestation for release artifacts
+- Public release workflow requires a valid Authenticode signature
 
 See [`SECURITY.md`](SECURITY.md), [`PRIVACY.md`](PRIVACY.md), [`CODE_SIGNING.md`](CODE_SIGNING.md), and [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md).
 
