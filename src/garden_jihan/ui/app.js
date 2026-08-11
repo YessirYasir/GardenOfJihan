@@ -10,12 +10,56 @@ let currentJob = null;
 let candidates = [];
 let selected = new Set();
 let boundaries = {};
+let projectSaveTimer = null;
+let projectSaveInFlight = false;
+let projectSaveQueued = false;
+let previewEnd = null;
 
 function api(path, options={}) {
   const headers = new Headers(options.headers || {});
   if (options.method && options.method !== 'GET') headers.set('X-GOJ-Token', token);
   if (options.body && !(options.body instanceof FormData)) headers.set('Content-Type','application/json');
   return fetch(path, {...options, headers});
+}
+function projectPayload(){
+  return {name:document.getElementById('projectName').value.trim()||'Untitled project',selected_ids:[...selected],boundaries,aspect:document.getElementById('aspect').value,framing:document.getElementById('framing').value,captions:document.getElementById('captions').value==='segments',caption_style:document.getElementById('captionStyle').value,caption_position:document.getElementById('captionPosition').value};
+}
+async function saveProject(){
+  if(!currentJob)return;
+  if(projectSaveInFlight){projectSaveQueued=true;return;}
+  const jobId=currentJob;const payload=projectPayload();projectSaveInFlight=true;const status=document.getElementById('projectSaveStatus');status.textContent='Saving locally…';
+  try{const res=await api(`/api/jobs/${jobId}/project`,{method:'PUT',body:JSON.stringify(payload)});const data=await res.json();if(!res.ok)throw new Error(data.detail||'Project save failed');if(currentJob===jobId)status.textContent='Saved locally';loadProjects();}
+  catch(err){if(currentJob===jobId)status.textContent=`Not saved: ${err.message}`;}
+  finally{projectSaveInFlight=false;if(projectSaveQueued){projectSaveQueued=false;saveProject();}}
+}
+function queueProjectSave(){
+  if(!currentJob)return;
+  clearTimeout(projectSaveTimer);document.getElementById('projectSaveStatus').textContent='Changes waiting to save…';projectSaveTimer=setTimeout(saveProject,450);
+}
+function restoreProject(data,{defaultStrong=false}={}){
+  const project=data.project||{};currentJob=data.id;candidates=data.candidates||[];boundaries=project.boundaries||{};
+  const validIds=new Set(candidates.map(candidate=>candidate.id));const restored=(project.selected_ids||[]).filter(id=>validIds.has(id));selected=new Set(restored.length||!defaultStrong?restored:candidates.filter(candidate=>candidate.score>=85).map(candidate=>candidate.id));
+  document.getElementById('projectName').value=project.name||'Untitled project';
+  document.getElementById('aspect').value=project.aspect||'9:16';document.getElementById('framing').value=project.framing||'auto';document.getElementById('captions').value=project.captions?'segments':'off';document.getElementById('captionStyle').value=project.caption_style||'garden';document.getElementById('captionPosition').value=project.caption_position||'bottom';
+  document.getElementById('projectSaveStatus').textContent=data.source_available?'Saved locally':'Source video is missing; export is unavailable';renderRankingStatus(data);renderCandidates();showStep(4);
+}
+function renderProjects(projects){
+  const list=document.getElementById('projectList');const empty=document.getElementById('emptyProjects');list.innerHTML='';empty.classList.toggle('hidden',projects.length>0);
+  projects.forEach(project=>{const item=document.createElement('div');item.className=`project-item${project.source_available?'':' unavailable'}`;const details=document.createElement('div');const name=document.createElement('b');name.textContent=project.name;const meta=document.createElement('small');const date=new Date(project.updated_at);meta.textContent=`${project.candidate_count} clips • ${project.selected_count} kept • ${Number.isNaN(date.getTime())?'saved locally':date.toLocaleDateString()}`;details.append(name,meta);const resume=document.createElement('button');resume.className='secondary';resume.textContent=project.source_available?'Resume':'Source missing';resume.disabled=!project.source_available;resume.addEventListener('click',()=>resumeProject(project.id));const remove=document.createElement('button');remove.className='secondary remove-project';remove.textContent='Remove';remove.addEventListener('click',()=>removeProject(project));item.append(details,resume,remove);list.appendChild(item);});
+}
+async function loadProjects(){
+  const empty=document.getElementById('emptyProjects');
+  try{const res=await api('/api/projects');const data=await res.json();if(!res.ok)throw new Error(data.detail||'Could not load projects');renderProjects(data.projects||[]);}
+  catch(err){empty.classList.remove('hidden');empty.textContent=`Local projects unavailable: ${err.message}`;}
+}
+async function resumeProject(jobId){
+  try{const res=await api(`/api/jobs/${jobId}`);const data=await res.json();if(!res.ok)throw new Error(data.detail||'Could not resume project');restoreProject(data);}
+  catch(err){window.alert(err.message);}
+}
+async function removeProject(project){
+  if(!window.confirm(`Remove “${project.name}” and its local source, clips, and review data from this computer?`))return;
+  try{const res=await api(`/api/projects/${project.id}`,{method:'DELETE'});const data=await res.json();if(!res.ok)throw new Error(data.detail||'Could not remove project');if(currentJob===project.id){currentJob=null;candidates=[];selected=new Set();boundaries={};showStep(0);}loadProjects();}
+  catch(err){window.alert(err.message);}
 }
 function showStep(n,{scroll=true}={}){
   step=Math.max(0,Math.min(5,n));
@@ -41,7 +85,7 @@ inspectSourceButton.addEventListener('click', async()=>{
     const res=await api('/api/source/inspect',{method:'POST',body:JSON.stringify({url})});
     const data=await res.json();
     if(!res.ok) throw new Error(data.detail || 'Could not inspect source');
-    source={url:data.url,uploadId:null};
+    source={url:data.url,uploadId:null,name:data.title||'Imported video'};
     const duration=data.duration?` • ${Math.round(data.duration/60)} min`:'';
     sourceMessage.innerHTML=`<strong>Ready:</strong> ${escapeHtml(data.title || data.provider)}${duration}`;
   }catch(err){sourceMessage.classList.add('error');sourceMessage.textContent=err.message;}
@@ -60,7 +104,7 @@ fileInput.addEventListener('change', async()=>{
     const res=await api('/api/upload',{method:'POST',body:form});
     const data=await res.json();
     if(!res.ok) throw new Error(data.detail || 'Upload failed');
-    source={url:null,uploadId:data.upload_id};
+    source={url:null,uploadId:data.upload_id,name:fileInput.files[0].name.replace(/\.[^.]+$/,'')};
     fileMessage.innerHTML=`<strong>Ready:</strong> ${escapeHtml(fileInput.files[0].name)} • local only`;
   }catch(err){fileMessage.classList.add('error');fileMessage.textContent=err.message;}
   finally{fileInput.disabled=false;}
@@ -93,7 +137,7 @@ startAnalysisButton.addEventListener('click',async()=>{
   if(!source.url && !source.uploadId){error.textContent='Add a video first.';error.classList.remove('hidden');return;}
   setAnalysisBusy(true);
   setProgress(4,'Creating secure job…');
-  const body={url:source.url,upload_id:source.uploadId,mode:selectedMode(),min_clip_seconds:Number(document.getElementById('minSeconds').value),max_clip_seconds:Number(document.getElementById('maxSeconds').value),max_clips:Number(document.getElementById('maxClips').value)};
+  const body={url:source.url,upload_id:source.uploadId,mode:selectedMode(),min_clip_seconds:Number(document.getElementById('minSeconds').value),max_clip_seconds:Number(document.getElementById('maxSeconds').value),max_clips:Number(document.getElementById('maxClips').value),project_name:source.name||null};
   try{
     const res=await api('/api/jobs/analyze',{method:'POST',body:JSON.stringify(body)});const data=await res.json();if(!res.ok)throw new Error(data.detail||'Could not start analysis');
     currentJob=data.job_id;pollJob();
@@ -105,7 +149,7 @@ async function pollJob(){
     setProgress(data.progress,data.message);
     if(data.status==='failed')throw new Error(data.error||'Analysis failed');
     if(data.status==='complete'){
-      setAnalysisBusy(false);candidates=data.candidates||[];boundaries={};selected=new Set(candidates.filter(c=>c.score>=85).map(c=>c.id));renderRankingStatus(data);renderCandidates();showStep(4);return;
+      setAnalysisBusy(false);restoreProject(data,{defaultStrong:true});queueProjectSave();return;
     }
     setTimeout(pollJob,900);
   }catch(err){setAnalysisBusy(false);const box=document.getElementById('analysisError');box.textContent=err.message;box.classList.remove('hidden');}
@@ -155,15 +199,15 @@ function renderCandidates(){
     const breakdown=Object.entries(c.score_breakdown||{}).filter(([,v])=>Number(v)>0).sort((a,b)=>b[1]-a[1]).slice(0,4);
     const timing=boundaries[c.id]||{start:c.start,end:c.end};
     card.innerHTML=`<div class="candidate-head"><div><h3>${escapeHtml(c.title)} #${index+1}</h3><small class="timing-label">${formatTime(timing.start)} → ${formatTime(timing.end)}</small></div><div class="score">${Math.round(c.score)}</div></div><div class="score-breakdown">${breakdown.map(([k,v])=>`<span><b>${escapeHtml(scoreLabel(k))}</b>${Math.round(v)}</span>`).join('')}</div>${quranMatchMarkup(c.quran_match)}<ul class="reason-list">${c.reasons.map(r=>`<li>${escapeHtml(r)}</li>`).join('')}</ul><div class="candidate-actions"><button class="secondary preview">Preview</button><button class="secondary adjust">Adjust timing</button><button class="keep ${selected.has(c.id)?'on':''}">${selected.has(c.id)?'Kept':'Keep'}</button></div><div class="boundary-editor hidden"><label>Start (seconds)<input class="boundary-start" type="number" min="0" step="0.1" value="${timing.start.toFixed(1)}"></label><label>End (seconds)<input class="boundary-end" type="number" min="0.1" step="0.1" value="${timing.end.toFixed(1)}"></label><button class="primary apply-boundary">Apply timing</button><small>Use this to restore context or trim a slow opening. Maximum adjusted clip: 3 minutes.</small></div>`;
-    card.querySelector('.preview').addEventListener('click',()=>{const effective=boundaries[c.id]||{start:c.start,end:c.end};const video=document.getElementById('sourcePreview');video.currentTime=effective.start;video.play();setTimeout(()=>{if(video.currentTime>=effective.end)video.pause()},Math.max(1000,(effective.end-effective.start)*1000));video.scrollIntoView({behavior:'smooth',block:'center'});});
+    card.querySelector('.preview').addEventListener('click',()=>{const effective=boundaries[c.id]||{start:c.start,end:c.end};const video=document.getElementById('sourcePreview');previewEnd=effective.end;video.currentTime=effective.start;video.play();video.scrollIntoView({behavior:'smooth',block:'center'});});
     const editor=card.querySelector('.boundary-editor');
     card.querySelector('.adjust').addEventListener('click',()=>editor.classList.toggle('hidden'));
-    card.querySelector('.apply-boundary').addEventListener('click',()=>{const start=Number(card.querySelector('.boundary-start').value);const end=Number(card.querySelector('.boundary-end').value);if(!Number.isFinite(start)||!Number.isFinite(end)||start<0||end<=start||end-start>180){window.alert('Choose a valid range up to 3 minutes.');return;}boundaries[c.id]={start,end};card.querySelector('.timing-label').textContent=`${formatTime(start)} → ${formatTime(end)}`;editor.classList.add('hidden');});
-    const keep=card.querySelector('.keep');keep.addEventListener('click',()=>{if(selected.has(c.id))selected.delete(c.id);else selected.add(c.id);keep.classList.toggle('on',selected.has(c.id));keep.textContent=selected.has(c.id)?'Kept':'Keep';syncExportSummary();});
+    card.querySelector('.apply-boundary').addEventListener('click',()=>{const start=Number(card.querySelector('.boundary-start').value);const end=Number(card.querySelector('.boundary-end').value);const duration=document.getElementById('sourcePreview').duration;if(!Number.isFinite(start)||!Number.isFinite(end)||start<0||end<=start||end-start>180||(Number.isFinite(duration)&&end>duration+.05)){window.alert('Choose a valid range within the source, up to 3 minutes.');return;}boundaries[c.id]={start,end};card.querySelector('.timing-label').textContent=`${formatTime(start)} → ${formatTime(end)}`;editor.classList.add('hidden');queueProjectSave();});
+    const keep=card.querySelector('.keep');keep.addEventListener('click',()=>{if(selected.has(c.id))selected.delete(c.id);else selected.add(c.id);keep.classList.toggle('on',selected.has(c.id));keep.textContent=selected.has(c.id)?'Kept':'Keep';syncExportSummary();queueProjectSave();});
     grid.appendChild(card);
   });syncExportSummary();
 }
-document.getElementById('selectStrong').addEventListener('click',()=>{selected=new Set(candidates.filter(c=>c.score>=85).map(c=>c.id));renderCandidates();});
+document.getElementById('selectStrong').addEventListener('click',()=>{selected=new Set(candidates.filter(c=>c.score>=85).map(c=>c.id));renderCandidates();queueProjectSave();});
 function syncCaptionControls(){
   const enabled=document.getElementById('captions').value==='segments';
   document.getElementById('captionStyle').disabled=!enabled;
@@ -171,8 +215,13 @@ function syncCaptionControls(){
   document.getElementById('exportCaptions').textContent=enabled?'Timed':'Off';
 }
 function syncExportSummary(){document.getElementById('selectedCount').textContent=selected.size;document.getElementById('exportAspect').textContent=document.getElementById('aspect').value;syncCaptionControls();}
-document.getElementById('captions').addEventListener('change',syncExportSummary);
-document.getElementById('aspect').addEventListener('change',syncExportSummary);
+document.getElementById('captions').addEventListener('change',()=>{syncExportSummary();queueProjectSave();});
+document.getElementById('aspect').addEventListener('change',()=>{syncExportSummary();queueProjectSave();});
+['framing','captionStyle','captionPosition'].forEach(id=>document.getElementById(id).addEventListener('change',queueProjectSave));
+document.getElementById('saveProject').addEventListener('click',saveProject);
+document.getElementById('projectName').addEventListener('change',queueProjectSave);
+document.getElementById('refreshProjects').addEventListener('click',loadProjects);
+document.getElementById('sourcePreview').addEventListener('timeupdate',event=>{if(previewEnd!==null&&event.currentTarget.currentTime>=previewEnd){event.currentTarget.pause();previewEnd=null;}});
 syncCaptionControls();
 
 const renderClipsButton=document.getElementById('renderClips');
@@ -204,3 +253,4 @@ function scoreLabel(key){return ({hook:'Hook',emotion:'Emotion',curiosity:'Curio
 function formatTime(sec){sec=Math.max(0,Math.floor(sec));const m=Math.floor(sec/60);const s=sec%60;return `${m}:${String(s).padStart(2,'0')}`;}
 function escapeHtml(value){return String(value).replace(/[&<>'"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));}
 showStep(0,{scroll:false});
+loadProjects();

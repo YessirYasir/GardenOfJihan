@@ -84,3 +84,18 @@ def test_auto_framing_is_honest_and_keeps_manual_fallbacks():
     )
     assert "never identifies a person" in html
     assert "file.framing?.message" in app_js
+
+
+def test_local_project_library_resumes_and_saves_review_state():
+    html = _ui_text("index.html")
+    app_js = _ui_text("app.js")
+
+    for element in ('id="projectLibrary"', 'id="projectList"', 'id="projectName"'):
+        assert element in html
+    assert "stored only on this computer" in html
+    assert "selected_ids:[...selected]" in app_js
+    assert "boundaries,aspect:" in app_js
+    assert "resumeProject(project.id)" in app_js
+    assert "method:'DELETE'" in app_js
+    assert "addEventListener('timeupdate'" in app_js
+    assert "setTimeout(()=>{if(video.currentTime>=effective.end)" not in app_js

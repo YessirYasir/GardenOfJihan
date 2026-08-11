@@ -19,7 +19,13 @@ from garden_jihan.media.framing import (
 from garden_jihan.media.probe import probe_media
 from garden_jihan.media.render import caption_cues_for_range, render_clip
 from garden_jihan.media.sources import inspect_source
-from garden_jihan.models import AnalysisMode, AnalyzeRequest, ExportRequest, SourceInspectRequest
+from garden_jihan.models import (
+    AnalysisMode,
+    AnalyzeRequest,
+    ExportRequest,
+    ProjectReviewRequest,
+    SourceInspectRequest,
+)
 from garden_jihan.security import LocalSecurityMiddleware, new_session_token, safe_job_path
 
 ALLOWED_UPLOAD_EXTENSIONS = {".mp4", ".mov", ".mkv", ".webm", ".m4v"}
@@ -130,6 +136,7 @@ def create_app(port: int, settings: Settings | None = None, session_token: str |
             destination.unlink(missing_ok=True)
             raise
         job.source_path = destination
+        job.project.name = (Path(file.filename or "Local video").stem[:80] or "Local video")
         return {"upload_id": job.id, "filename": destination.name, "bytes": total}
 
     @app.post("/api/jobs/analyze")
@@ -161,6 +168,8 @@ def create_app(port: int, settings: Settings | None = None, session_token: str |
                 )
         except (KeyError, ValueError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if payload.project_name and payload.project_name.strip():
+            job.project.name = payload.project_name.strip()
         return {"job_id": job.id}
 
     @app.get("/api/jobs/{job_id}")
@@ -169,6 +178,34 @@ def create_app(port: int, settings: Settings | None = None, session_token: str |
             return json.loads(app.state.jobs.public(job_id).model_dump_json())
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Unknown job") from exc
+
+    @app.get("/api/projects")
+    async def projects():
+        return {"projects": app.state.jobs.list_projects()}
+
+    @app.put("/api/jobs/{job_id}/project")
+    async def update_project(job_id: str, payload: ProjectReviewRequest):
+        try:
+            job = app.state.jobs.update_project(job_id, payload)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Unknown project") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except OSError as exc:
+            raise HTTPException(status_code=507, detail="Local project could not be saved") from exc
+        return json.loads(app.state.jobs.public(job.id).model_dump_json())
+
+    @app.delete("/api/projects/{job_id}")
+    async def delete_project(job_id: str):
+        try:
+            app.state.jobs.delete_project(job_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Unknown project") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except OSError as exc:
+            raise HTTPException(status_code=500, detail="Local project could not be removed") from exc
+        return {"removed": True}
 
     @app.get("/api/jobs/{job_id}/source")
     async def job_source(job_id: str):

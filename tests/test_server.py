@@ -253,3 +253,39 @@ def test_auto_framing_non_vertical_export_reports_center_fallback(tmp_path, monk
     assert framing["applied"] == "center"
     assert framing["confidence"] == 0.0
     assert "only to vertical 9:16" in framing["message"]
+
+
+def test_project_review_list_resume_and_remove_are_local_and_validated(tmp_path):
+    settings = Settings(app_data=tmp_path)
+    app = create_app(port=8765, settings=settings, session_token="test-token")
+    job = _complete_export_job(app, tmp_path)
+    job_folder = settings.jobs_dir / job.id
+    job.source_path = job_folder / "upload.mp4"
+    job.source_path.write_bytes(b"video")
+    headers = {"origin": "http://127.0.0.1:8765", "x-goj-token": "test-token"}
+    payload = {
+        "name": "My local project",
+        "selected_ids": ["candidate123"],
+        "boundaries": {"candidate123": {"start": 9.0, "end": 13.5}},
+        "aspect": "1:1",
+        "framing": "center",
+        "captions": True,
+        "caption_style": "minimal",
+        "caption_position": "middle",
+    }
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        saved = client.put(f"/api/jobs/{job.id}/project", headers=headers, json=payload)
+        projects = client.get("/api/projects")
+        resumed = client.get(f"/api/jobs/{job.id}")
+        removed = client.delete(f"/api/projects/{job.id}", headers=headers)
+
+    assert saved.status_code == 200
+    assert saved.json()["project"]["name"] == "My local project"
+    assert projects.json()["projects"][0]["selected_count"] == 1
+    assert resumed.json()["project"]["boundaries"]["candidate123"] == {
+        "start": 9.0,
+        "end": 13.5,
+    }
+    assert removed.json() == {"removed": True}
+    assert not job_folder.exists()

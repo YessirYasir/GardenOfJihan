@@ -21,7 +21,7 @@ The project is designed around four principles:
 - **Multilingual by design:** English, Arabic, and Somali are first-class modes.
 - **Faithful Qur'an workflows:** Qur'anic recognition must use verified reference data and fail safely when confidence is insufficient.
 
-> **Status: internal/public-beta candidate.** The Windows application, local security boundary, source validation, Intelligence V2 ranking, manual timing, confidence-gated local audio-visual framing, manual framing controls, styled segment-timed captions, export pipeline, bundled media tools, CI/security scans, clean-Windows executable smoke tests, and Microsoft Defender release scans are operational. Checksum-pinned Tanzil installation and fail-safe Surah/Ayah matching are implemented; acoustic Qira'at recognition and Qur'an word timing are not. Trusted Windows distribution, a representative Somali gold corpus, robust speaker identity/diarization, and direct platform publishing remain active development areas.
+> **Status: internal/public-beta candidate.** The Windows application, local security boundary, source validation, resumable local projects, Intelligence V2 ranking, manual timing, confidence-gated local audio-visual framing, manual framing controls, styled segment-timed captions, export pipeline, bundled media tools, CI/security scans, clean-Windows executable smoke tests, and Microsoft Defender release scans are operational. Checksum-pinned Tanzil installation and fail-safe Surah/Ayah matching are implemented; acoustic Qira'at recognition and Qur'an word timing are not. Trusted Windows distribution, a representative Somali gold corpus, robust speaker identity/diarization, and direct platform publishing remain active development areas.
 
 ## Current workflow
 
@@ -33,6 +33,8 @@ The project is designed around four principles:
 6. Choose 9:16, 16:9, or 1:1 output. Vertical clips can use confidence-gated local face/activity framing or a manual fallback.
 7. Optionally burn in locally timed transcript captions using Garden, high-contrast, or minimal styling.
 8. Render clean MP4 clips locally and save them.
+
+Completed analyses are saved as versioned local project manifests alongside their isolated source files. The dashboard can resume kept clips, timing adjustments, and export settings after an app restart. These projects remain on the computer until the user removes them from the project library; incomplete temporary jobs continue to use automatic retention cleanup.
 
 Supported source validation is structured for YouTube, TikTok, Instagram, and local files. Users are responsible for having the rights and permission to process and republish source media.
 

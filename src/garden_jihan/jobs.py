@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import shutil
 import threading
 import uuid
@@ -12,12 +13,12 @@ from garden_jihan.analysis.audience import youtube_replay_signal
 from garden_jihan.analysis.quran import QuranReference
 from garden_jihan.analysis.scoring import build_candidates
 from garden_jihan.analysis.semantics import LocalSemanticRanker
-from garden_jihan.analysis.signals import MediaSignals, build_media_signals
+from garden_jihan.analysis.signals import MediaSignals, TimedValue, build_media_signals
 from garden_jihan.analysis.transcription import TranscriptSegment, transcribe
 from garden_jihan.config import Settings
 from garden_jihan.media.downloader import download_remote
 from garden_jihan.media.probe import probe_media
-from garden_jihan.models import AnalysisMode, ClipCandidate, JobPublic
+from garden_jihan.models import AnalysisMode, ClipCandidate, JobPublic, ProjectReview
 from garden_jihan.security import safe_job_path
 
 
@@ -34,7 +35,9 @@ class JobState:
     transcript_segments: list[TranscriptSegment] = field(default_factory=list)
     media_signals: MediaSignals | None = None
     source_path: Path | None = None
+    project: ProjectReview = field(default_factory=ProjectReview)
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 class JobManager:
@@ -43,6 +46,8 @@ class JobManager:
         self.settings.jobs_dir.mkdir(parents=True, exist_ok=True)
         self._jobs: dict[str, JobState] = {}
         self._lock = threading.Lock()
+        self.cleanup_old()
+        self._load_projects()
         self._semantic_ranker = LocalSemanticRanker(settings.app_data / "models" / "semantic")
         self._pool = ThreadPoolExecutor(
             max_workers=settings.max_concurrent_jobs,
@@ -101,6 +106,8 @@ class JobManager:
             folder = safe_job_path(self.settings.jobs_dir, job.id)
             path = download_remote(url, folder / "source")
             job.source_path = path
+            if job.project.name == "Untitled project":
+                job.project.name = path.stem[:80] or "Imported video"
             replay = youtube_replay_signal(url)
             self._analyze(job.id, path, mode, min_s, max_s, max_clips, replay=replay)
         except Exception as exc:
@@ -175,7 +182,15 @@ class JobManager:
             if effective_mode == AnalysisMode.QURAN:
                 self._set(job, "running", 90, "Matching the local Quran reference")
                 self._attach_quran_matches(job.candidates)
+            job.project.selected_ids = [
+                candidate.id for candidate in job.candidates if candidate.score >= 85
+            ]
             self._set(job, "complete", 100, f"Found {len(job.candidates)} clip candidates")
+            job.updated_at = datetime.now(UTC)
+            try:
+                self._persist_project(job)
+            except OSError:
+                job.message += "; local project could not be saved"
         except Exception as exc:
             self._fail(job, exc)
 
@@ -223,13 +238,198 @@ class JobManager:
             ranking_method=job.ranking_method,
             ranking_message=job.ranking_message,
             candidates=job.candidates,
+            project=job.project,
+            source_available=bool(job.source_path and job.source_path.exists()),
+            created_at=job.created_at,
+            updated_at=job.updated_at,
         )
+
+    @staticmethod
+    def _timed_values(values: list) -> list[dict[str, float]]:
+        return [
+            {"start": float(item.start), "end": float(item.end), "value": float(item.value)}
+            for item in values
+        ]
+
+    def _persist_project(self, job: JobState) -> None:
+        if job.status != "complete":
+            return
+        folder = safe_job_path(self.settings.jobs_dir, job.id)
+        source_relative = None
+        if job.source_path:
+            try:
+                source_relative = job.source_path.resolve().relative_to(folder.resolve()).as_posix()
+            except ValueError:
+                source_relative = None
+        signals = job.media_signals or MediaSignals()
+        manifest = {
+            "schema": 1,
+            "id": job.id,
+            "status": job.status,
+            "message": job.message,
+            "ranking_method": job.ranking_method,
+            "ranking_message": job.ranking_message,
+            "source": source_relative,
+            "created_at": job.created_at.isoformat(),
+            "updated_at": job.updated_at.isoformat(),
+            "project": job.project.model_dump(mode="json"),
+            "candidates": [candidate.model_dump(mode="json") for candidate in job.candidates],
+            "transcript_segments": [
+                {"start": item.start, "end": item.end, "text": item.text}
+                for item in job.transcript_segments
+            ],
+            "media_signals": {
+                "audio_energy": self._timed_values(signals.audio_energy),
+                "scene_times": [float(value) for value in signals.scene_times],
+                "replay": self._timed_values(signals.replay),
+            },
+        }
+        temporary = folder / "project.json.tmp"
+        destination = folder / "project.json"
+        temporary.write_text(
+            json.dumps(manifest, ensure_ascii=False, separators=(",", ":")),
+            encoding="utf-8",
+        )
+        temporary.replace(destination)
+
+    @staticmethod
+    def _parse_time(raw: object) -> datetime:
+        try:
+            value = datetime.fromisoformat(str(raw))
+        except (TypeError, ValueError):
+            return datetime.now(UTC)
+        return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+
+    @staticmethod
+    def _load_timed_values(raw: object) -> list:
+        if not isinstance(raw, list):
+            return []
+        values = []
+        for item in raw[:20_000]:
+            if not isinstance(item, dict):
+                continue
+            try:
+                values.append(
+                    TimedValue(
+                        start=float(item["start"]),
+                        end=float(item["end"]),
+                        value=float(item["value"]),
+                    )
+                )
+            except (KeyError, TypeError, ValueError):
+                continue
+        return values
+
+    def _load_projects(self) -> None:
+        for manifest_path in self.settings.jobs_dir.glob("*/project.json"):
+            try:
+                if manifest_path.stat().st_size > 64 * 1024 * 1024:
+                    continue
+                folder = safe_job_path(self.settings.jobs_dir, manifest_path.parent.name)
+                raw = json.loads(manifest_path.read_text(encoding="utf-8"))
+                if raw.get("schema") != 1 or raw.get("id") != folder.name:
+                    continue
+                source_path = None
+                source_relative = raw.get("source")
+                if isinstance(source_relative, str) and source_relative:
+                    candidate_source = (folder / source_relative).resolve()
+                    if folder.resolve() in candidate_source.parents and candidate_source.is_file():
+                        source_path = candidate_source
+                transcript = []
+                for item in raw.get("transcript_segments", [])[:100_000]:
+                    transcript.append(
+                        TranscriptSegment(
+                            start=float(item["start"]),
+                            end=float(item["end"]),
+                            text=str(item["text"]),
+                        )
+                    )
+                signal_data = raw.get("media_signals", {})
+                signals = MediaSignals(
+                    audio_energy=self._load_timed_values(signal_data.get("audio_energy")),
+                    scene_times=[
+                        float(value) for value in signal_data.get("scene_times", [])[:20_000]
+                    ],
+                    replay=self._load_timed_values(signal_data.get("replay")),
+                )
+                job = JobState(
+                    id=folder.name,
+                    status="complete",
+                    progress=100,
+                    message=str(raw.get("message") or "Project restored"),
+                    ranking_method=str(raw.get("ranking_method") or "base_fallback"),
+                    ranking_message=str(raw.get("ranking_message") or "Restored local project"),
+                    candidates=[
+                        ClipCandidate.model_validate(item)
+                        for item in raw.get("candidates", [])[:30]
+                    ],
+                    transcript_segments=transcript,
+                    media_signals=signals,
+                    source_path=source_path,
+                    project=ProjectReview.model_validate(raw.get("project", {})),
+                    created_at=self._parse_time(raw.get("created_at")),
+                    updated_at=self._parse_time(raw.get("updated_at")),
+                )
+            except (AttributeError, OSError, TypeError, ValueError, KeyError, json.JSONDecodeError):
+                continue
+            self._jobs[job.id] = job
+
+    def list_projects(self) -> list[dict]:
+        with self._lock:
+            jobs = sorted(self._jobs.values(), key=lambda job: job.updated_at, reverse=True)
+        return [
+            {
+                "id": job.id,
+                "name": job.project.name,
+                "updated_at": job.updated_at.isoformat(),
+                "candidate_count": len(job.candidates),
+                "selected_count": len(job.project.selected_ids),
+                "source_available": bool(job.source_path and job.source_path.exists()),
+            }
+            for job in jobs
+            if job.status == "complete"
+        ]
+
+    def update_project(self, job_id: str, project: ProjectReview) -> JobState:
+        job = self.get(job_id)
+        if job.status != "complete":
+            raise ValueError("Analysis is not complete")
+        candidate_ids = {candidate.id for candidate in job.candidates}
+        if unknown := set(project.selected_ids) - candidate_ids:
+            raise ValueError(f"Unknown selected clip: {sorted(unknown)[0]}")
+        if unknown := set(project.boundaries) - candidate_ids:
+            raise ValueError(f"Unknown adjusted clip: {sorted(unknown)[0]}")
+        with self._lock:
+            previous_project = job.project
+            previous_updated_at = job.updated_at
+            job.project = project
+            job.updated_at = datetime.now(UTC)
+        try:
+            self._persist_project(job)
+        except (OSError, ValueError):
+            with self._lock:
+                job.project = previous_project
+                job.updated_at = previous_updated_at
+            raise
+        return job
+
+    def delete_project(self, job_id: str) -> None:
+        job = self.get(job_id)
+        if job.status == "running":
+            raise ValueError("A running project cannot be removed")
+        folder = safe_job_path(self.settings.jobs_dir, job_id)
+        shutil.rmtree(folder)
+        with self._lock:
+            self._jobs.pop(job_id, None)
 
     def cleanup_old(self):
         cutoff = datetime.now(UTC) - timedelta(hours=self.settings.job_retention_hours)
         for path in self.settings.jobs_dir.iterdir():
             if not path.is_dir():
                 continue
+            if (path / "project.json").is_file():
+                continue
             modified = datetime.fromtimestamp(path.stat().st_mtime, UTC)
             if modified < cutoff:
-                shutil.rmtree(path, ignore_errors=True)
+                target = safe_job_path(self.settings.jobs_dir, path.name)
+                shutil.rmtree(target, ignore_errors=True)
