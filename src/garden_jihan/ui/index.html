@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
+  <meta name="google" content="notranslate">
   <meta name="goj-token" content="__GOJ_TOKEN__">
   <title>Garden of Jihan</title>
   <link rel="stylesheet" href="/static/app.css">
@@ -115,6 +116,13 @@
     <aside class="settings-panel glass-panel">
       <div class="settings-title"><b>✦ AI Settings</b><span>Local</span></div>
       <section class="setting-group"><h3>Language Priority</h3><label class="toggle-row"><span>◎ Auto detect</span><input type="radio" name="mode" value="auto" checked></label><label class="toggle-row"><span>★ Somali</span><input type="radio" name="mode" value="somali"></label><label class="toggle-row"><span>ع Arabic</span><input type="radio" name="mode" value="arabic"></label><label class="toggle-row"><span>☾ Qur’an</span><input type="radio" name="mode" value="quran"></label></section>
+      <section class="setting-group quran-reference-group">
+        <h3>Qur’an Reference</h3>
+        <div id="quranReferenceStatus" class="reference-status checking"><span></span><div><b>Checking local reference…</b><small>Surah/Ayah recognition stays disabled until a complete verified reference is installed.</small></div></div>
+        <a class="reference-source" href="https://tanzil.net/download/" target="_blank" rel="noreferrer">Open official Tanzil download ↗</a>
+        <label class="reference-upload" for="quranReferenceFile"><input id="quranReferenceFile" type="file" accept=".txt,.text,text/plain"><b>Install official Tanzil .txt</b><small>Validated locally: all 6,236 ayahs are required.</small></label>
+        <div id="quranReferenceMessage" class="notice hidden" aria-live="polite"></div>
+      </section>
       <section class="setting-group"><h3>Viral Scoring Factors</h3><div class="score-factor"><span>Emotional Impact</span><b>30%</b><i style="--w:76%"></i></div><div class="score-factor"><span>Hook Strength</span><b>25%</b><i style="--w:67%"></i></div><div class="score-factor"><span>Context &amp; Payoff</span><b>20%</b><i style="--w:61%"></i></div><div class="score-factor"><span>Visual Momentum</span><b>15%</b><i style="--w:53%"></i></div></section>
       <section class="setting-group output-settings"><h3>Output Settings</h3><label>Format<select id="aspect"><option value="9:16">Vertical (9:16)</option><option value="16:9">Landscape (16:9)</option><option value="1:1">Square (1:1)</option></select></label><label>Min Clip Length<select id="minSeconds"><option value="15">15 seconds</option><option value="20" selected>20 seconds</option><option value="30">30 seconds</option></select></label><label>Max Clip Length<select id="maxSeconds"><option value="60">60 seconds</option><option value="75" selected>75 seconds</option><option value="90">90 seconds</option></select></label><label>Clip Count<select id="maxClips"><option>5</option><option selected>10</option><option>15</option><option>20</option></select></label></section>
       <div class="settings-foot"><span>100% local analysis</span><span>No telemetry by default</span></div>
