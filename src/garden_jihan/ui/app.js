@@ -9,6 +9,7 @@ let source = {url:null, uploadId:null};
 let currentJob = null;
 let candidates = [];
 let selected = new Set();
+let boundaries = {};
 
 function api(path, options={}) {
   const headers = new Headers(options.headers || {});
@@ -84,7 +85,7 @@ async function pollJob(){
     setProgress(data.progress,data.message);
     if(data.status==='failed')throw new Error(data.error||'Analysis failed');
     if(data.status==='complete'){
-      candidates=data.candidates||[];selected=new Set(candidates.filter(c=>c.score>=85).map(c=>c.id));renderCandidates();showStep(4);return;
+      candidates=data.candidates||[];boundaries={};selected=new Set(candidates.filter(c=>c.score>=85).map(c=>c.id));renderCandidates();showStep(4);return;
     }
     setTimeout(pollJob,900);
   }catch(err){const box=document.getElementById('analysisError');box.textContent=err.message;box.classList.remove('hidden');}
@@ -96,8 +97,12 @@ function renderCandidates(){
   candidates.forEach((c,index)=>{
     const card=document.createElement('article');card.className='candidate';
     const breakdown=Object.entries(c.score_breakdown||{}).filter(([,v])=>Number(v)>0).sort((a,b)=>b[1]-a[1]).slice(0,4);
-    card.innerHTML=`<div class="candidate-head"><div><h3>${escapeHtml(c.title)} #${index+1}</h3><small>${formatTime(c.start)} → ${formatTime(c.end)}</small></div><div class="score">${Math.round(c.score)}</div></div><div class="score-breakdown">${breakdown.map(([k,v])=>`<span><b>${escapeHtml(scoreLabel(k))}</b>${Math.round(v)}</span>`).join('')}</div><ul class="reason-list">${c.reasons.map(r=>`<li>${escapeHtml(r)}</li>`).join('')}</ul><div class="candidate-actions"><button class="secondary preview">Preview</button><button class="keep ${selected.has(c.id)?'on':''}">${selected.has(c.id)?'Kept':'Keep'}</button></div>`;
-    card.querySelector('.preview').addEventListener('click',()=>{const video=document.getElementById('sourcePreview');video.currentTime=c.start;video.play();setTimeout(()=>{if(video.currentTime>=c.end)video.pause()},Math.max(1000,(c.end-c.start)*1000));video.scrollIntoView({behavior:'smooth',block:'center'});});
+    const timing=boundaries[c.id]||{start:c.start,end:c.end};
+    card.innerHTML=`<div class="candidate-head"><div><h3>${escapeHtml(c.title)} #${index+1}</h3><small class="timing-label">${formatTime(timing.start)} → ${formatTime(timing.end)}</small></div><div class="score">${Math.round(c.score)}</div></div><div class="score-breakdown">${breakdown.map(([k,v])=>`<span><b>${escapeHtml(scoreLabel(k))}</b>${Math.round(v)}</span>`).join('')}</div><ul class="reason-list">${c.reasons.map(r=>`<li>${escapeHtml(r)}</li>`).join('')}</ul><div class="candidate-actions"><button class="secondary preview">Preview</button><button class="secondary adjust">Adjust timing</button><button class="keep ${selected.has(c.id)?'on':''}">${selected.has(c.id)?'Kept':'Keep'}</button></div><div class="boundary-editor hidden"><label>Start (seconds)<input class="boundary-start" type="number" min="0" step="0.1" value="${timing.start.toFixed(1)}"></label><label>End (seconds)<input class="boundary-end" type="number" min="0.1" step="0.1" value="${timing.end.toFixed(1)}"></label><button class="primary apply-boundary">Apply timing</button><small>Use this to restore context or trim a slow opening. Maximum adjusted clip: 3 minutes.</small></div>`;
+    card.querySelector('.preview').addEventListener('click',()=>{const effective=boundaries[c.id]||{start:c.start,end:c.end};const video=document.getElementById('sourcePreview');video.currentTime=effective.start;video.play();setTimeout(()=>{if(video.currentTime>=effective.end)video.pause()},Math.max(1000,(effective.end-effective.start)*1000));video.scrollIntoView({behavior:'smooth',block:'center'});});
+    const editor=card.querySelector('.boundary-editor');
+    card.querySelector('.adjust').addEventListener('click',()=>editor.classList.toggle('hidden'));
+    card.querySelector('.apply-boundary').addEventListener('click',()=>{const start=Number(card.querySelector('.boundary-start').value);const end=Number(card.querySelector('.boundary-end').value);if(!Number.isFinite(start)||!Number.isFinite(end)||start<0||end<=start||end-start>180){window.alert('Choose a valid range up to 3 minutes.');return;}boundaries[c.id]={start,end};card.querySelector('.timing-label').textContent=`${formatTime(start)} → ${formatTime(end)}`;editor.classList.add('hidden');});
     const keep=card.querySelector('.keep');keep.addEventListener('click',()=>{if(selected.has(c.id))selected.delete(c.id);else selected.add(c.id);keep.classList.toggle('on',selected.has(c.id));keep.textContent=selected.has(c.id)?'Kept':'Keep';syncExportSummary();});
     grid.appendChild(card);
   });syncExportSummary();
@@ -110,7 +115,8 @@ document.getElementById('renderClips').addEventListener('click',async()=>{
   if(!currentJob||selected.size===0){box.textContent='Choose at least one clip first.';return;}
   box.textContent='Rendering locally with FFmpeg…';
   try{
-    const res=await api(`/api/jobs/${currentJob}/export`,{method:'POST',body:JSON.stringify({candidate_ids:[...selected],aspect:document.getElementById('aspect').value})});const data=await res.json();if(!res.ok)throw new Error(data.detail||'Render failed');
+    const selectedBoundaries=Object.fromEntries([...selected].filter(id=>boundaries[id]).map(id=>[id,boundaries[id]]));
+    const res=await api(`/api/jobs/${currentJob}/export`,{method:'POST',body:JSON.stringify({candidate_ids:[...selected],aspect:document.getElementById('aspect').value,boundaries:selectedBoundaries})});const data=await res.json();if(!res.ok)throw new Error(data.detail||'Render failed');
     box.innerHTML=`<strong>Ready.</strong> ${data.files.length} clip${data.files.length===1?'':'s'} rendered.`;
     data.files.forEach(file=>{const a=document.createElement('a');a.className='download-link';a.href=file.url;a.download=file.name;a.innerHTML=`<span>${escapeHtml(file.name)}</span><strong>Save ↓</strong>`;list.appendChild(a);});
   }catch(err){box.classList.add('error');box.textContent=err.message;}
