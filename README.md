@@ -1,4 +1,4 @@
-# Garden of Jihan — جيهان
+# Garden of Jihan — جهان
 
 ![Garden of Jihan design target](docs/design-preview.svg)
 
@@ -16,7 +16,9 @@ No Python, FFmpeg, Git, subscription, credits, or paid AI API is required.
 4. Garden of Jihan opens its private local interface in your default browser.
 5. Paste a supported video link or choose a local video and begin.
 
-The first AI analysis downloads the local Whisper model once and caches it on that PC. The application itself and video processing remain local. Because this early open-source beta is not yet Authenticode code-signed, Windows SmartScreen may show an **Unknown publisher** warning on some PCs. The release includes a SHA256 checksum so users can verify the downloaded ZIP.
+The first AI analysis downloads the local Whisper model once and caches it on that PC. Video analysis and rendering then run locally. Every official beta release is built from this public repository by GitHub Actions, smoke-tested on a clean Windows runner, scanned with Microsoft Defender Antivirus, published with a SHA256 checksum, and given a GitHub build-provenance attestation.
+
+The project is also preparing free open-source trusted code signing through SignPath Foundation. Until that approval is active, a new unsigned beta can still receive a Windows SmartScreen **Unknown publisher** warning even when the release scan and automated checks are clean. See the project [`Code signing policy`](CODE_SIGNING.md).
 
 The project is designed around four principles:
 
@@ -74,8 +76,10 @@ Garden of Jihan is designed as local software, not an internet-facing web servic
 - Temporary-job cleanup
 - GitHub Actions CI, Bandit, dependency audit, and CodeQL checks
 - Windows release smoke-tested by launching the packaged executable on a clean GitHub Windows runner
+- Microsoft Defender Antivirus scan before public release
+- SHA256 checksum and GitHub build-provenance attestation for the downloadable ZIP
 
-See [`SECURITY.md`](SECURITY.md) and [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md).
+See [`SECURITY.md`](SECURITY.md), [`PRIVACY.md`](PRIVACY.md), [`CODE_SIGNING.md`](CODE_SIGNING.md), and [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md).
 
 ## Qur'an and Qira'at
 
