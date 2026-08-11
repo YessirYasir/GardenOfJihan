@@ -154,39 +154,23 @@ class JobManager:
 
     def _attach_quran_matches(self, candidates: list[ClipCandidate]) -> None:
         reference = QuranReference(self.settings.quran_reference)
-        if not reference.available:
-            for candidate in candidates:
-                candidate.quran_match = {
-                    "status": "reference_unavailable",
-                    "message": "Install the verified local Quran reference before identifying Surah/Ayah.",
-                }
-            return
-
-        source_name = reference.source.get("name", "local verified reference")
         for candidate in candidates:
-            matches = reference.match(candidate.transcript)
-            if not matches:
-                candidate.quran_match = {
-                    "status": "uncertain",
-                    "source": source_name,
-                    "message": "No sufficiently confident Surah/Ayah match. Review manually.",
-                }
-                continue
-
-            best = matches[0]
-            public = best.public()
-            public["source"] = source_name
+            decision = reference.identify(candidate.transcript)
+            public = decision.public(reference.source)
             candidate.quran_match = public
-            ayah_label = f"{best.surah}:{best.ayah}"
-            if best.end_ayah:
-                ayah_label += f"–{best.end_ayah}"
-            if public["status"] == "high_confidence":
+            if decision.status == "verified" and decision.match:
+                best = decision.match
+                ayah_label = f"{best.surah}:{best.ayah}"
+                if best.end_ayah:
+                    ayah_label += f"–{best.end_ayah}"
                 candidate.title = f"Qur'an {ayah_label}"
-                reason = f"High-confidence Quran reference match: {ayah_label}"
-            else:
-                candidate.title = f"Possible Qur'an {ayah_label}"
-                reason = f"Possible Quran reference match: {ayah_label}; review before export"
-            candidate.reasons = [reason, *candidate.reasons][:6]
+                reasons = [f"Verified Quran reference match: {ayah_label}"]
+                if best.starts_mid_ayah or best.ends_mid_ayah:
+                    reasons.append("Review timing: this candidate may cut through an ayah")
+                candidate.reasons = [*reasons, *candidate.reasons][:6]
+            elif decision.status in {"possible", "uncertain"}:
+                candidate.title = "Qur'an passage — review required"
+                candidate.reasons = [decision.message, *candidate.reasons][:6]
 
     def _fail(self, job: JobState, exc: Exception):
         with self._lock:

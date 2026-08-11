@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
-from garden_jihan.analysis.quran import AYAH_COUNTS
+from garden_jihan.analysis import quran as quran_module
+from garden_jihan.analysis.quran import AYAH_COUNTS, canonical_tanzil_sha256
 from garden_jihan.config import Settings
 from garden_jihan.server import create_app
 
@@ -30,7 +31,9 @@ def test_quran_reference_status_starts_unavailable(tmp_path):
     with TestClient(app, base_url="http://127.0.0.1:8765") as client:
         response = client.get("/api/quran/reference")
         assert response.status_code == 200
+        assert response.json()["installed"] is False
         assert response.json()["available"] is False
+        assert response.json()["verified"] is False
         assert response.json()["verses"] == 0
 
 
@@ -48,7 +51,7 @@ def test_quran_reference_install_requires_complete_reference(tmp_path):
         assert "6236" in response.json()["detail"]
 
 
-def test_quran_reference_install_accepts_complete_tanzil_shape(tmp_path):
+def test_quran_reference_install_rejects_complete_unreviewed_content(tmp_path):
     settings = Settings(app_data=tmp_path)
     app = create_app(port=8765, settings=settings, session_token="test-token")
     headers = {"origin": "http://127.0.0.1:8765", "x-goj-token": "test-token"}
@@ -63,13 +66,41 @@ def test_quran_reference_install_accepts_complete_tanzil_shape(tmp_path):
             headers=headers,
             files={"file": ("quran.txt", raw, "text/plain")},
         )
+        assert response.status_code == 400
+        assert "does not match the reviewed Tanzil" in response.json()["detail"]
+
+
+def test_quran_reference_install_accepts_reviewed_hash(tmp_path, monkeypatch):
+    settings = Settings(app_data=tmp_path)
+    app = create_app(port=8765, settings=settings, session_token="test-token")
+    headers = {"origin": "http://127.0.0.1:8765", "x-goj-token": "test-token"}
+    lines = []
+    for surah, count in enumerate(AYAH_COUNTS, start=1):
+        for ayah in range(1, count + 1):
+            lines.append(f"{surah}|{ayah}|نص السورة {surah} الاية {ayah}")
+    raw = "\n".join(lines)
+    monkeypatch.setattr(
+        quran_module,
+        "TANZIL_TRUSTED_CANONICAL_SHA256",
+        frozenset({canonical_tanzil_sha256(raw)}),
+    )
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        response = client.post(
+            "/api/quran/reference",
+            headers=headers,
+            files={"file": ("quran.txt", raw, "text/plain")},
+        )
         assert response.status_code == 200
         data = response.json()
+        assert data["installed"] is True
         assert data["available"] is True
+        assert data["verified"] is True
         assert data["verses"] == 6236
         assert data["source"]["name"] == "Tanzil Project"
+        assert data["integrity"]["canonical_sha256"] == canonical_tanzil_sha256(raw)
         status = client.get("/api/quran/reference").json()
         assert status["available"] is True
+        assert status["verified"] is True
         assert status["verses"] == 6236
 
 

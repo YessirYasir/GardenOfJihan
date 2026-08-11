@@ -4,7 +4,12 @@ Garden of Jihan does **not** use an LLM as the authority for Surah/Ayah numberin
 
 ## Offline recognition reference
 
-The production matcher supports a complete, verbatim Tanzil Quran text as its offline Surah/Ayah recognition reference.
+The production matcher currently supports one reviewed Tanzil 1.1 profile as its offline Surah/Ayah recognition reference:
+
+- text type: **Simple**
+- Tanzil's default pause marks, sajdah signs, and tatweel options
+- download format: **Text (with aya numbers)**
+- canonical SHA256: `d25401b9235ea0c77a2511b1edc5b5d28df1b3bcd0259d6657ec6e303dd8eee9`
 
 Tanzil Quran Text is published by the Tanzil Project under Creative Commons Attribution 3.0. Its license permits verbatim copying and application use, requires clear attribution/source linking, and does not permit changing the Quran text itself.
 
@@ -12,13 +17,14 @@ Reference source and updates:
 
 - Tanzil Project: https://tanzil.net/
 - Text license: https://tanzil.net/docs/Text_License
-- Updates: https://tanzil.net/updates/
+- Download documentation: https://tanzil.net/docs/download
+- Updates: https://tanzil.net/docs/text_updates
 
 Garden of Jihan preserves `text_display` verbatim. Arabic normalization is stored only as a separate `text_match` representation used for search/matching. The normalized matching copy must never replace the displayed sacred text.
 
-The importer accepts a complete 6236-ayah Tanzil file in either `surah|ayah|text` form or the standard one-ayah-per-line order. Partial files are rejected.
+The importer accepts only a complete `surah|ayah|text` file whose 6236 coordinates are in exact canonical order and whose canonical checksum matches the reviewed profile above. The canonical checksum is calculated over the non-comment content lines, joined with LF line endings and no final newline. Partial, reordered, modified, differently configured, or newer files fail closed until their exact profile is reviewed and added in code.
 
-Installed data is stored under the user's local Garden of Jihan application-data directory as `reference/quran_reference.json` with Tanzil source/license metadata.
+Installed data is written atomically under the user's local Garden of Jihan application-data directory as `reference/quran_reference.json` with Tanzil source/license metadata and integrity fields. The coordinate sequence, display text, profile, notice, and checksums are revalidated every time the reference is loaded. A corrupt or edited installed file is disabled rather than used.
 
 ## Quran.com / Quran Foundation
 
@@ -26,12 +32,13 @@ Quran Foundation / Quran.com remains the intended human-verification/reference l
 
 ## Qira'at
 
-Qira'at recognition is intentionally separate from Surah/Ayah text recognition. The application models all ten canonical readers and their two main transmitter traditions, but it must not label a reading from text matching alone. Qira'at identification requires reading-sensitive locations plus acoustic evidence, and the UI must be able to say that a passage is not distinguishable.
+Qira'at recognition is intentionally separate from Surah/Ayah text recognition. A planning registry records the ten canonical readers and their two main transmission traditions, but the application does **not** currently identify Qira'at. It must not label a reading from text matching alone. Future Qira'at support requires independently validated reading-sensitive reference data and acoustic evidence, and the UI must be able to say that a reading was not assessed or is not distinguishable.
 
 ## Safety behavior
 
-- High-confidence reference matches may label a candidate with Surah/Ayah.
-- Borderline matches are shown as possible and require review.
-- Weak matches remain uncertain.
-- Missing reference data is reported explicitly.
-- No reading/transmission is inferred from the offline text match.
+- A Surah/Ayah label appears only when the reference is valid, textual confidence and coverage clear strict thresholds, and competing locations are not too close.
+- Borderline, partial, or ambiguous matches require review and do not reveal a guessed location.
+- Repeated passages fail safely when textual evidence cannot distinguish their locations.
+- Word alignment is textual. It does not claim word-level audio timestamps.
+- Missing or invalid reference data is reported explicitly.
+- No reading or transmission is inferred from the offline text match.

@@ -8,14 +8,21 @@
   if (!statusBox || !fileInput || !messageBox || !group) return;
 
   function renderStatus(data) {
-    const available = Boolean(data?.available) && Number(data?.verses) === 6236;
+    const available = Boolean(data?.available) && Boolean(data?.verified) && Number(data?.verses) === 6236;
+    const invalid = Boolean(data?.installed) && !available;
     statusBox.classList.toggle('ready', available);
-    statusBox.classList.toggle('missing', !available);
+    statusBox.classList.toggle('invalid', invalid);
+    statusBox.classList.toggle('missing', !available && !invalid);
     statusBox.classList.remove('checking');
-    const source = data?.source?.name || 'verified local reference';
-    statusBox.innerHTML = available
-      ? `<span></span><div><b>Reference ready</b><small>6,236 ayahs • ${escapeText(source)} • stored locally</small></div>`
-      : '<span></span><div><b>Reference not installed</b><small>Surah/Ayah identification remains fail-safe until a complete reference is installed.</small></div>';
+    const source = data?.source?.name || 'reviewed local reference';
+    const checksum = String(data?.integrity?.canonical_sha256 || '').slice(0, 12);
+    if (available) {
+      statusBox.innerHTML = `<span></span><div><b>Reference verified</b><small>6,236 ayahs • ${escapeText(source)} v${escapeText(data?.source?.version||'1.1')} • SHA-256 ${escapeText(checksum)}…</small></div>`;
+    } else if (invalid) {
+      statusBox.innerHTML = '<span></span><div><b>Reference blocked</b><small>The installed file failed integrity validation. Reinstall the exact reviewed Tanzil profile.</small></div>';
+    } else {
+      statusBox.innerHTML = '<span></span><div><b>Reference not installed</b><small>Surah/Ayah identification remains disabled until the reviewed file passes its checksum.</small></div>';
+    }
   }
 
   async function refreshStatus() {
@@ -44,8 +51,8 @@
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || 'Reference installation failed');
-      if (!data.available || Number(data.verses) !== 6236) throw new Error('Reference validation did not complete');
-      messageBox.innerHTML = '<strong>Ready.</strong> Complete local Qur’an reference installed.';
+      if (!data.available || !data.verified || Number(data.verses) !== 6236) throw new Error('Reference integrity validation did not complete');
+      messageBox.innerHTML = '<strong>Verified.</strong> The reviewed Tanzil 1.1 reference is installed locally.';
       renderStatus(data);
     } catch (error) {
       messageBox.classList.add('error');

@@ -21,6 +21,23 @@ ALLOWED_UPLOAD_EXTENSIONS = {".mp4", ".mov", ".mkv", ".webm", ".m4v"}
 MAX_QURAN_REFERENCE_BYTES = 8 * 1024 * 1024
 
 
+def _quran_reference_status(reference: QuranReference) -> dict:
+    source = {
+        key: reference.source.get(key)
+        for key in ("name", "version", "profile", "license", "license_url", "url", "updates")
+        if reference.source.get(key)
+    }
+    return {
+        "installed": reference.installed,
+        "available": reference.available,
+        "verified": reference.available,
+        "verses": len(reference.records),
+        "source": source,
+        "integrity": reference.integrity,
+        "validation_error": reference.validation_error,
+    }
+
+
 def create_app(port: int, settings: Settings | None = None, session_token: str | None = None) -> FastAPI:
     settings = settings or Settings()
     token = session_token or new_session_token()
@@ -45,11 +62,7 @@ def create_app(port: int, settings: Settings | None = None, session_token: str |
     @app.get("/api/quran/reference")
     async def quran_reference_status():
         reference = QuranReference(settings.quran_reference)
-        return {
-            "available": reference.available,
-            "verses": len(reference.records),
-            "source": reference.source,
-        }
+        return _quran_reference_status(reference)
 
     @app.post("/api/quran/reference")
     async def install_quran_reference(file: Annotated[UploadFile, File()]):
@@ -67,11 +80,7 @@ def create_app(port: int, settings: Settings | None = None, session_token: str |
             reference = QuranReference.install_tanzil_text(text, settings.quran_reference)
         except (ValueError, TypeError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
-        return {
-            "available": reference.available,
-            "verses": len(reference.records),
-            "source": reference.source,
-        }
+        return _quran_reference_status(reference)
 
     @app.post("/api/source/inspect")
     async def inspect(payload: SourceInspectRequest):

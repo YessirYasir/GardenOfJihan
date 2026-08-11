@@ -21,7 +21,7 @@ The project is designed around four principles:
 - **Multilingual by design:** English, Arabic, and Somali are first-class modes.
 - **Faithful Qur'an workflows:** Qur'anic recognition must use verified reference data and fail safely when confidence is insufficient.
 
-> **Status: internal/public-beta candidate.** The Windows application, local security boundary, source validation, Intelligence V2 ranking, manual timing, framing controls, export pipeline, bundled media tools, CI/security scans, clean-Windows executable smoke tests, and Microsoft Defender release scans are operational. Trusted Windows distribution, advanced Qur'an/Qira'at recognition, Somali corpus validation, automatic speaker tracking, caption styling, and direct platform publishing remain active development areas.
+> **Status: internal/public-beta candidate.** The Windows application, local security boundary, source validation, Intelligence V2 ranking, manual timing, framing controls, export pipeline, bundled media tools, CI/security scans, clean-Windows executable smoke tests, and Microsoft Defender release scans are operational. Checksum-pinned Tanzil installation and fail-safe Surah/Ayah matching are implemented; acoustic Qira'at recognition is not. Trusted Windows distribution, Somali corpus validation, automatic speaker tracking, caption styling, and direct platform publishing remain active development areas.
 
 ## Current workflow
 
@@ -82,12 +82,12 @@ The matcher architecture separates:
 
 1. Qur'anic passage identification
 2. word-level alignment
-3. Qira'at-sensitive diagnostic locations
-4. reading/transmission confidence
+3. a future Qira'at-sensitive acoustic evidence layer
+4. future reading/transmission confidence
 
-The UI must be able to say **“not distinguishable from this passage”** rather than invent a reading.
+Current releases do not claim Qira'at identification. The UI reports that a reading was not assessed rather than inventing one.
 
-The intended reference authority is Quran Foundation / Quran.com. Their authenticated Content API client secret must never be embedded in this open-source desktop application. See [`data/quran/README.md`](data/quran/README.md).
+The offline matcher uses a reviewed, checksum-pinned Tanzil profile. Quran Foundation / Quran.com remains the intended human-verification layer; its authenticated Content API client secret must never be embedded in this open-source desktop application. See [`data/quran/README.md`](data/quran/README.md).
 
 ## Somali language benchmark
 

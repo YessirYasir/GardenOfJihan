@@ -93,19 +93,26 @@ async function pollJob(){
 function quranMatchMarkup(match){
   if(!match)return '';
   const status=String(match.status||'uncertain');
-  if(status==='reference_unavailable'){
-    return `<div class="quran-match unavailable"><div><b>Qur’an reference not installed</b><small>${escapeHtml(match.message||'Install the verified local reference before identifying Surah/Ayah.')}</small></div></div>`;
+  if(status==='reference_unavailable'||status==='reference_invalid'){
+    const heading=status==='reference_invalid'?'Qur’an reference needs attention':'Qur’an reference not installed';
+    return `<div class="quran-match unavailable"><div><b>${escapeHtml(heading)}</b><small>${escapeHtml(match.message||'Install the reviewed local reference before identifying Surah/Ayah.')}</small></div></div>`;
   }
-  if(status==='uncertain' && !match.surah){
-    return `<div class="quran-match uncertain"><div><b>Surah/Ayah uncertain</b><small>${escapeHtml(match.message||'Review this passage manually before export.')}</small></div></div>`;
+  if(status!=='verified'){
+    const confidence=Number(match.confidence||0);
+    const confidenceText=Number.isFinite(confidence)&&confidence>0?` • ${Math.round(confidence)}% candidate confidence`:'';
+    const heading=status==='possible'?'Possible Qur’an text — not identified':'Surah/Ayah uncertain';
+    return `<div class="quran-match ${status==='possible'?'possible':'uncertain'}"><div><b>${escapeHtml(heading)}</b><small>${escapeHtml(match.message||'Review this passage manually before export.')}${escapeHtml(confidenceText)}</small><small class="qiraat-note">${escapeHtml(match.qiraat_message||'Qira’at is not assessed from text.')}</small></div></div>`;
   }
   const start=`${Number(match.surah)}:${Number(match.ayah)}`;
   const label=match.end_ayah?`${start}–${Number(match.end_ayah)}`:start;
   const confidence=Number(match.confidence||0);
-  const confidenceText=Number.isFinite(confidence)?`${Math.round(confidence)}% match`:'Reference match';
-  const heading=status==='high_confidence'?`Qur’an ${label}`:`Possible Qur’an ${label}`;
-  const sacredText=match.text_display?`<div class="quran-display" lang="ar" dir="rtl" translate="no">${escapeHtml(match.text_display)}</div>`:'';
-  return `<div class="quran-match ${status==='high_confidence'?'high':'possible'}"><div class="quran-match-head"><b>${escapeHtml(heading)}</b><span>${escapeHtml(confidenceText)}</span></div>${sacredText}<small>${escapeHtml(match.source||'Verified local reference')} • Qira’at is not inferred from text matching</small></div>`;
+  const confidenceText=Number.isFinite(confidence)?`${Math.round(confidence)}% confidence`:'Verified reference';
+  const verses=Array.isArray(match.verses)?match.verses:[];
+  const sacredText=verses.map(verse=>`<div class="quran-verse"><div class="quran-display" lang="ar" dir="rtl" translate="no">${escapeHtml(verse.text_display||'')}</div><small>${Number(verse.surah)}:${Number(verse.ayah)}</small></div>`).join('');
+  const alignment=Array.isArray(match.word_alignment)?match.word_alignment:[];
+  const wordTrack=alignment.length?`<div class="quran-alignment"><div class="quran-alignment-head"><b>Word alignment</b><span>${Number(match.matched_words)||0} of ${Number(match.total_words)||alignment.filter(word=>!word.optional).length} locating words</span></div><div class="quran-word-track" lang="ar" dir="rtl" translate="no">${alignment.map(word=>`<span class="${word.optional?'optional':word.matched?'matched':'missed'}" title="${word.optional?'Optional opening formula':word.matched?`${Math.round(Number(word.similarity)||0)}% aligned`:'Not aligned'}">${escapeHtml(word.reference_word||'')}</span>`).join(' ')}</div></div>`:'';
+  const boundaryWarning=match.starts_mid_ayah||match.ends_mid_ayah?'<div class="quran-boundary-warning"><b>Review clip boundaries</b><small>The aligned words suggest this candidate may begin or end inside an ayah.</small></div>':'';
+  return `<div class="quran-match high"><div class="quran-match-head"><b>Verified Qur’an ${escapeHtml(label)}</b><span>${escapeHtml(confidenceText)}</span></div>${sacredText}${wordTrack}${boundaryWarning}<small>${escapeHtml(match.source||'Reviewed local reference')} ${match.source_version?`v${escapeHtml(match.source_version)}`:''}</small><small class="qiraat-note">${escapeHtml(match.qiraat_message||'Qira’at is not assessed from text matching.')}</small></div>`;
 }
 function renderCandidates(){
   const grid=document.getElementById('candidateGrid');grid.innerHTML='';
