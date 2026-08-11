@@ -1,0 +1,54 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "garden-of-jihan"
+version = "0.1.0"
+description = "Local-first long-form video clipping for Windows with multilingual and Qur'an-aware workflows."
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+license = {text = "MIT"}
+authors = [{name = "YessirYasir"}]
+dependencies = [
+  "fastapi>=0.115,<1",
+  "uvicorn[standard]>=0.34,<1",
+  "pydantic>=2.10,<3",
+  "python-multipart>=0.0.20,<1",
+  "yt-dlp>=2025.1.1",
+]
+
+[project.optional-dependencies]
+ai = [
+  "faster-whisper>=1.1,<2",
+]
+dev = [
+  "pytest>=8,<10",
+  "pytest-cov>=6,<8",
+  "httpx>=0.28,<1",
+  "ruff>=0.9,<1",
+  "bandit>=1.8,<2",
+  "pip-audit>=2.8,<3",
+]
+windows = [
+  "pyinstaller>=6.11,<7",
+]
+
+[project.scripts]
+garden-of-jihan = "garden_jihan.launcher:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/garden_jihan"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S"]
+ignore = ["S603"]
