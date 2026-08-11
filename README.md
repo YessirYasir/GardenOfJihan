@@ -1,4 +1,4 @@
-# Garden of Jihan — جهان
+# Garden of Jihan — جيهان
 
 ![Garden of Jihan design target](docs/design-preview.svg)
 
