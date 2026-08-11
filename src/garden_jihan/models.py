@@ -36,6 +36,7 @@ class ClipCandidate(BaseModel):
     transcript: str
     mode: AnalysisMode
     quran_match: dict | None = None
+    score_breakdown: dict[str, float] = Field(default_factory=dict)
 
 
 class JobPublic(BaseModel):
@@ -44,7 +45,7 @@ class JobPublic(BaseModel):
     progress: int = Field(ge=0, le=100)
     message: str
     error: str | None = None
-    candidates: list[ClipCandidate] = []
+    candidates: list[ClipCandidate] = Field(default_factory=list)
 
 
 class ExportRequest(BaseModel):
