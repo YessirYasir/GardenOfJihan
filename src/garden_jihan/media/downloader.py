@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from garden_jihan.runtime import ffmpeg_path
 from garden_jihan.security import validate_remote_url
 
 
 def download_remote(url: str, destination: Path) -> Path:
     import yt_dlp
 
-    _provider, clean = validate_remote_url(url)
+    _provider, clean_url = validate_remote_url(url)
     destination.mkdir(parents=True, exist_ok=True)
     outtmpl = str(destination / "source.%(ext)s")
     options = {
@@ -20,9 +21,10 @@ def download_remote(url: str, destination: Path) -> Path:
         "no_warnings": True,
         "overwrites": True,
         "socket_timeout": 30,
+        "ffmpeg_location": str(Path(ffmpeg_path()).parent),
     }
     with yt_dlp.YoutubeDL(options) as ydl:
-        info = ydl.extract_info(clean, download=True)
+        info = ydl.extract_info(clean_url, download=True)
         candidate = Path(ydl.prepare_filename(info))
 
     if candidate.exists():
