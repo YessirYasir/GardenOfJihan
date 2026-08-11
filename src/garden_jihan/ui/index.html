@@ -110,9 +110,15 @@
 
       <div class="screen" data-screen="5">
         <div class="panel-title"><span>6.</span><div><h2>Export Garden</h2><p>Render your selected moments locally with no watermark or credit meter.</p></div></div>
-        <div class="export-summary"><div><small>Selected</small><strong id="selectedCount">0</strong></div><div><small>Format</small><strong id="exportAspect">9:16</strong></div><div><small>Watermark</small><strong>None</strong></div></div>
+        <div class="export-summary"><div><small>Selected</small><strong id="selectedCount">0</strong></div><div><small>Format</small><strong id="exportAspect">9:16</strong></div><div><small>Captions</small><strong id="exportCaptions">Off</strong></div><div><small>Watermark</small><strong>None</strong></div></div>
         <label class="export-control">Vertical framing<select id="framing"><option value="center" selected>Center crop</option><option value="left">Keep left side</option><option value="right">Keep right side</option><option value="split-stack">Split &amp; stack both sides</option></select><small>Framing changes vertical 9:16 exports. Other formats keep their normal crop.</small></label>
-        <button id="renderClips" class="primary analyze-hero">Export Selected Clips ✦<small>Render locally with bundled FFmpeg</small></button>
+        <div class="caption-controls">
+          <label>Transcript captions<select id="captions"><option value="off" selected>Off</option><option value="segments">Burn in timed segments</option></select></label>
+          <label>Caption style<select id="captionStyle"><option value="garden" selected>Garden cream</option><option value="high-contrast">High contrast</option><option value="minimal">Minimal</option></select></label>
+          <label>Position<select id="captionPosition"><option value="bottom" selected>Bottom</option><option value="middle">Middle</option><option value="top">Top</option></select></label>
+        </div>
+        <p class="caption-safety">Uses local transcript segment timing, not word tracking. Qur’an burn-in stays disabled until verified acoustic timing is available.</p>
+        <button id="renderClips" class="primary analyze-hero" aria-busy="false">Export Selected Clips ✦<small>Render locally with bundled FFmpeg</small></button>
         <div id="exportMessage" class="notice hidden" aria-live="polite"></div><div id="downloadList" class="downloads"></div>
       </div>
 

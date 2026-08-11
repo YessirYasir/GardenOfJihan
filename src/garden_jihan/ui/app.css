@@ -25,3 +25,11 @@ button:focus-visible,input:focus-visible,select:focus-visible,.dropzone:focus-wi
 .scoring-note{margin:2px 0 0;color:var(--muted);font-size:8px;line-height:1.45}
 @media(max-width:560px){.trust-row{justify-content:center;overflow:visible;flex-wrap:wrap;padding:0 12px 8px}.trust-row span{white-space:normal;text-align:center}.analysis-garden{height:92px}.garden-progress-bed{left:8px;right:8px}}
 @media(prefers-reduced-motion:reduce){.analysis-garden::before,.growth-stage i,.growth-stage b{transition:none!important}}
+
+/* Local export caption customization */
+.export-summary{grid-template-columns:repeat(4,1fr)}
+.caption-controls{display:grid;grid-template-columns:1.35fr 1fr 1fr;gap:9px;margin:10px 0}
+.caption-controls label{display:grid;gap:5px;font-size:9px;font-weight:700}
+.caption-controls select{min-width:0}
+.caption-safety{margin:0 0 12px;color:var(--muted);font-size:9px;line-height:1.45}
+@media(max-width:560px){.caption-controls{grid-template-columns:1fr}.export-summary{grid-template-columns:1fr}}

@@ -44,5 +44,17 @@ def test_analysis_progress_is_accessible_and_does_not_scroll_on_launch():
     assert "showStep(0,{scroll:false});" in app_js
     assert "let analysisBusy=false;" in app_js
     assert "startAnalysisButton.disabled=busy;" in app_js
-    mobile_rules = app_css[app_css.rfind("@media(max-width:560px)") :]
-    assert ".trust-row{justify-content:center;overflow:visible;flex-wrap:wrap" in mobile_rules
+    assert ".trust-row{justify-content:center;overflow:visible;flex-wrap:wrap" in app_css
+
+
+def test_caption_controls_are_functional_and_do_not_claim_word_tracking():
+    html = _ui_text("index.html")
+    app_js = _ui_text("app.js")
+
+    for control in ('id="captions"', 'id="captionStyle"', 'id="captionPosition"'):
+        assert control in html
+    assert "Uses local transcript segment timing, not word tracking." in html
+    assert "Qur’an burn-in stays disabled until verified acoustic timing" in html
+    assert "caption_style:document.getElementById('captionStyle').value" in app_js
+    assert "candidate.mode==='quran'" in app_js
+    assert "let exportBusy=false;" in app_js

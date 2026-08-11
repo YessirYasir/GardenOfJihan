@@ -2,7 +2,9 @@ from fastapi.testclient import TestClient
 
 from garden_jihan.analysis import quran as quran_module
 from garden_jihan.analysis.quran import AYAH_COUNTS, canonical_tanzil_sha256
+from garden_jihan.analysis.transcription import TranscriptSegment
 from garden_jihan.config import Settings
+from garden_jihan.models import AnalysisMode, ClipCandidate
 from garden_jihan.server import create_app
 
 
@@ -114,3 +116,71 @@ def test_export_boundary_model_rejects_backwards_range():
     except ValidationError:
         return
     raise AssertionError("Backwards clip boundary should be rejected")
+
+
+def _complete_export_job(app, tmp_path, mode=AnalysisMode.GENERAL):
+    job = app.state.jobs.create_upload_job()
+    job.status = "complete"
+    job.source_path = tmp_path / "source.mp4"
+    job.source_path.write_bytes(b"video")
+    job.transcript_segments = [TranscriptSegment(8.0, 14.0, "A timed transcript segment.")]
+    job.candidates = [
+        ClipCandidate(
+            id="candidate123",
+            start=8.0,
+            end=14.0,
+            score=90,
+            title="Strong moment",
+            reasons=["Test"],
+            transcript="A timed transcript segment.",
+            mode=mode,
+        )
+    ]
+    return job
+
+
+def test_export_passes_clipped_caption_cues_and_style(tmp_path, monkeypatch):
+    settings = Settings(app_data=tmp_path)
+    app = create_app(port=8765, settings=settings, session_token="test-token")
+    job = _complete_export_job(app, tmp_path)
+    captured = {}
+    monkeypatch.setattr("garden_jihan.server.probe_media", lambda *_args: {"duration": 30.0})
+
+    def fake_render(*args, **kwargs):
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+
+    monkeypatch.setattr("garden_jihan.server.render_clip", fake_render)
+    headers = {"origin": "http://127.0.0.1:8765", "x-goj-token": "test-token"}
+    payload = {
+        "candidate_ids": ["candidate123"],
+        "captions": True,
+        "caption_style": "high-contrast",
+        "caption_position": "top",
+        "boundaries": {"candidate123": {"start": 10.0, "end": 13.0}},
+    }
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        response = client.post(f"/api/jobs/{job.id}/export", headers=headers, json=payload)
+
+    assert response.status_code == 200
+    cue = captured["kwargs"]["caption_cues"][0]
+    assert (cue.start, cue.end, cue.text) == (0.0, 3.0, "A timed transcript segment.")
+    assert captured["kwargs"]["caption_style"] == "high-contrast"
+    assert captured["kwargs"]["caption_position"] == "top"
+
+
+def test_quran_export_captions_fail_closed_without_acoustic_timing(tmp_path, monkeypatch):
+    settings = Settings(app_data=tmp_path)
+    app = create_app(port=8765, settings=settings, session_token="test-token")
+    job = _complete_export_job(app, tmp_path, AnalysisMode.QURAN)
+    monkeypatch.setattr("garden_jihan.server.render_clip", lambda *_args, **_kwargs: None)
+    headers = {"origin": "http://127.0.0.1:8765", "x-goj-token": "test-token"}
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        response = client.post(
+            f"/api/jobs/{job.id}/export",
+            headers=headers,
+            json={"candidate_ids": ["candidate123"], "captions": True},
+        )
+
+    assert response.status_code == 409
+    assert "verified acoustic timing" in response.json()["detail"]

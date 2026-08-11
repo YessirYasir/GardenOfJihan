@@ -21,7 +21,7 @@ The project is designed around four principles:
 - **Multilingual by design:** English, Arabic, and Somali are first-class modes.
 - **Faithful Qur'an workflows:** Qur'anic recognition must use verified reference data and fail safely when confidence is insufficient.
 
-> **Status: internal/public-beta candidate.** The Windows application, local security boundary, source validation, Intelligence V2 ranking, manual timing, framing controls, export pipeline, bundled media tools, CI/security scans, clean-Windows executable smoke tests, and Microsoft Defender release scans are operational. Checksum-pinned Tanzil installation and fail-safe Surah/Ayah matching are implemented; acoustic Qira'at recognition is not. Trusted Windows distribution, Somali corpus validation, automatic speaker tracking, caption styling, and direct platform publishing remain active development areas.
+> **Status: internal/public-beta candidate.** The Windows application, local security boundary, source validation, Intelligence V2 ranking, manual timing, framing controls, styled segment-timed captions, export pipeline, bundled media tools, CI/security scans, clean-Windows executable smoke tests, and Microsoft Defender release scans are operational. Checksum-pinned Tanzil installation and fail-safe Surah/Ayah matching are implemented; acoustic Qira'at recognition and Qur'an word timing are not. Trusted Windows distribution, a representative Somali gold corpus, automatic speaker tracking, and direct platform publishing remain active development areas.
 
 ## Current workflow
 
@@ -31,7 +31,8 @@ The project is designed around four principles:
 4. Rank non-overlapping moments using transcript meaning, audio energy, visual activity, and YouTube replay data when available.
 5. Preview clips, adjust start/end timing, and select the strongest moments.
 6. Choose 9:16, 16:9, or 1:1 output plus manual vertical framing options.
-7. Render clean MP4 clips locally and save them.
+7. Optionally burn in locally timed transcript captions using Garden, high-contrast, or minimal styling.
+8. Render clean MP4 clips locally and save them.
 
 Supported source validation is structured for YouTube, TikTok, Instagram, and local files. Users are responsible for having the rights and permission to process and republish source media.
 
@@ -86,6 +87,8 @@ The matcher architecture separates:
 4. future reading/transmission confidence
 
 Current releases do not claim Qira'at identification. The UI reports that a reading was not assessed rather than inventing one.
+
+Qur'an burn-in captions are also disabled until acoustic evidence can support verified timing. The editor may display checksum-verified reference text and textual word alignment for review, but it does not misrepresent those textual alignments as spoken-word timestamps.
 
 The offline matcher uses a reviewed, checksum-pinned Tanzil profile. Quran Foundation / Quran.com remains the intended human-verification layer; its authenticated Content API client secret must never be embedded in this open-source desktop application. See [`data/quran/README.md`](data/quran/README.md).
 

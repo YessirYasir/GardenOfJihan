@@ -12,7 +12,7 @@ from garden_jihan.analysis.audience import youtube_replay_signal
 from garden_jihan.analysis.quran import QuranReference
 from garden_jihan.analysis.scoring import build_candidates
 from garden_jihan.analysis.signals import build_media_signals
-from garden_jihan.analysis.transcription import transcribe
+from garden_jihan.analysis.transcription import TranscriptSegment, transcribe
 from garden_jihan.config import Settings
 from garden_jihan.media.downloader import download_remote
 from garden_jihan.media.probe import probe_media
@@ -28,6 +28,7 @@ class JobState:
     message: str = "Queued"
     error: str | None = None
     candidates: list[ClipCandidate] = field(default_factory=list)
+    transcript_segments: list[TranscriptSegment] = field(default_factory=list)
     source_path: Path | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
@@ -123,6 +124,8 @@ class JobManager:
                 else None
             )
             transcript = transcribe(path, language=language_hint)
+            with self._lock:
+                job.transcript_segments = list(transcript.segments)
             effective_mode = mode
             if mode == AnalysisMode.AUTO:
                 effective_mode = (

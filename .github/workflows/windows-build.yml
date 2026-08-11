@@ -6,6 +6,7 @@ on:
     paths:
       - 'src/**'
       - 'scripts/build-windows.ps1'
+      - 'scripts/smoke-captions.ps1'
       - 'scripts/version-info.txt'
       - 'pyproject.toml'
       - '.github/workflows/windows-build.yml'
@@ -36,6 +37,12 @@ jobs:
           if (-not (Test-Path "dist\GardenOfJihan\_internal\bin\ffmpeg.exe") -and -not (Test-Path "dist\GardenOfJihan\bin\ffmpeg.exe")) { throw "Bundled ffmpeg missing" }
           if (-not (Test-Path "dist\GardenOfJihan\_internal\bin\ffprobe.exe") -and -not (Test-Path "dist\GardenOfJihan\bin\ffprobe.exe")) { throw "Bundled ffprobe missing" }
           if (-not (Test-Path "dist\GardenOfJihan-Windows-x64.zip")) { throw "Release ZIP missing" }
+
+      - name: Smoke-test bundled styled captions
+        shell: pwsh
+        run: |
+          $ffmpeg = if (Test-Path "dist\GardenOfJihan\_internal\bin\ffmpeg.exe") { "dist\GardenOfJihan\_internal\bin\ffmpeg.exe" } else { "dist\GardenOfJihan\bin\ffmpeg.exe" }
+          .\scripts\smoke-captions.ps1 -FfmpegPath $ffmpeg
 
       - name: Smoke-test packaged executable and UI
         shell: pwsh

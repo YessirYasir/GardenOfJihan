@@ -13,6 +13,18 @@ class AnalysisMode(StrEnum):
     QURAN = "quran"
 
 
+class CaptionStyle(StrEnum):
+    GARDEN = "garden"
+    HIGH_CONTRAST = "high-contrast"
+    MINIMAL = "minimal"
+
+
+class CaptionPosition(StrEnum):
+    BOTTOM = "bottom"
+    MIDDLE = "middle"
+    TOP = "top"
+
+
 class SourceInspectRequest(BaseModel):
     url: HttpUrl
 
@@ -65,4 +77,7 @@ class ExportRequest(BaseModel):
     candidate_ids: list[str] = Field(min_length=1, max_length=30)
     aspect: str = Field(default="9:16", pattern=r"^(9:16|16:9|1:1)$")
     framing: str = Field(default="center", pattern=r"^(center|left|right|split-stack)$")
+    captions: bool = False
+    caption_style: CaptionStyle = CaptionStyle.GARDEN
+    caption_position: CaptionPosition = CaptionPosition.BOTTOM
     boundaries: dict[str, ClipBoundaryOverride] = Field(default_factory=dict)

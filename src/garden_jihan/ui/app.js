@@ -152,18 +152,34 @@ function renderCandidates(){
   });syncExportSummary();
 }
 document.getElementById('selectStrong').addEventListener('click',()=>{selected=new Set(candidates.filter(c=>c.score>=85).map(c=>c.id));renderCandidates();});
-function syncExportSummary(){document.getElementById('selectedCount').textContent=selected.size;document.getElementById('exportAspect').textContent=document.getElementById('aspect').value;}
+function syncCaptionControls(){
+  const enabled=document.getElementById('captions').value==='segments';
+  document.getElementById('captionStyle').disabled=!enabled;
+  document.getElementById('captionPosition').disabled=!enabled;
+  document.getElementById('exportCaptions').textContent=enabled?'Timed':'Off';
+}
+function syncExportSummary(){document.getElementById('selectedCount').textContent=selected.size;document.getElementById('exportAspect').textContent=document.getElementById('aspect').value;syncCaptionControls();}
+document.getElementById('captions').addEventListener('change',syncExportSummary);
+document.getElementById('aspect').addEventListener('change',syncExportSummary);
+syncCaptionControls();
 
-document.getElementById('renderClips').addEventListener('click',async()=>{
+const renderClipsButton=document.getElementById('renderClips');
+let exportBusy=false;
+renderClipsButton.addEventListener('click',async()=>{
+  if(exportBusy)return;
   const box=document.getElementById('exportMessage');const list=document.getElementById('downloadList');list.innerHTML='';box.classList.remove('hidden','error');
   if(!currentJob||selected.size===0){box.textContent='Choose at least one clip first.';return;}
+  const captions=document.getElementById('captions').value==='segments';
+  if(captions&&candidates.some(candidate=>selected.has(candidate.id)&&candidate.mode==='quran')){box.classList.add('error');box.textContent='Qur’an burn-in captions stay disabled until verified acoustic timing exists. Export without captions and use the reference-backed review panel.';return;}
+  exportBusy=true;renderClipsButton.disabled=true;renderClipsButton.setAttribute('aria-busy','true');
   box.textContent='Rendering locally with FFmpeg…';
   try{
     const selectedBoundaries=Object.fromEntries([...selected].filter(id=>boundaries[id]).map(id=>[id,boundaries[id]]));
-    const res=await api(`/api/jobs/${currentJob}/export`,{method:'POST',body:JSON.stringify({candidate_ids:[...selected],aspect:document.getElementById('aspect').value,framing:document.getElementById('framing').value,boundaries:selectedBoundaries})});const data=await res.json();if(!res.ok)throw new Error(data.detail||'Render failed');
+    const res=await api(`/api/jobs/${currentJob}/export`,{method:'POST',body:JSON.stringify({candidate_ids:[...selected],aspect:document.getElementById('aspect').value,framing:document.getElementById('framing').value,captions,caption_style:document.getElementById('captionStyle').value,caption_position:document.getElementById('captionPosition').value,boundaries:selectedBoundaries})});const data=await res.json();if(!res.ok)throw new Error(data.detail||'Render failed');
     box.innerHTML=`<strong>Ready.</strong> ${data.files.length} clip${data.files.length===1?'':'s'} rendered.`;
     data.files.forEach(file=>{const a=document.createElement('a');a.className='download-link';a.href=file.url;a.download=file.name;a.innerHTML=`<span>${escapeHtml(file.name)}</span><strong>Save ↓</strong>`;list.appendChild(a);});
   }catch(err){box.classList.add('error');box.textContent=err.message;}
+  finally{exportBusy=false;renderClipsButton.disabled=false;renderClipsButton.setAttribute('aria-busy','false');}
 });
 
 window.addEventListener('scroll',()=>{

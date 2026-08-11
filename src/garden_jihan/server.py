@@ -12,9 +12,9 @@ from garden_jihan.analysis.quran import QuranReference
 from garden_jihan.config import Settings
 from garden_jihan.jobs import JobManager
 from garden_jihan.media.probe import probe_media
-from garden_jihan.media.render import render_clip
+from garden_jihan.media.render import caption_cues_for_range, render_clip
 from garden_jihan.media.sources import inspect_source
-from garden_jihan.models import AnalyzeRequest, ExportRequest, SourceInspectRequest
+from garden_jihan.models import AnalysisMode, AnalyzeRequest, ExportRequest, SourceInspectRequest
 from garden_jihan.security import LocalSecurityMiddleware, new_session_token, safe_job_path
 
 ALLOWED_UPLOAD_EXTENSIONS = {".mp4", ".mov", ".mkv", ".webm", ".m4v"}
@@ -183,6 +183,14 @@ def create_app(port: int, settings: Settings | None = None, session_token: str |
             candidate = by_id.get(candidate_id)
             if not candidate:
                 raise HTTPException(status_code=400, detail="Unknown clip candidate")
+            if payload.captions and candidate.mode == AnalysisMode.QURAN:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        "Qur'an burn-in captions are disabled until verified acoustic timing "
+                        "supports them. Review the reference-backed passage in the editor."
+                    ),
+                )
             requested.append(candidate)
 
         output_dir = safe_job_path(settings.jobs_dir, job.id) / "output"
@@ -201,6 +209,14 @@ def create_app(port: int, settings: Settings | None = None, session_token: str |
                 raise HTTPException(status_code=400, detail="Adjusted clip exceeds source duration")
             filename = f"clip_{index:02d}_{candidate.id}.mp4"
             destination = output_dir / filename
+            caption_cues = None
+            if payload.captions:
+                caption_cues = caption_cues_for_range(job.transcript_segments, start, end)
+                if not caption_cues:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="No timed transcript segments are available for these captions",
+                    )
             try:
                 render_clip(
                     job.source_path,
@@ -209,6 +225,9 @@ def create_app(port: int, settings: Settings | None = None, session_token: str |
                     end,
                     payload.aspect,
                     payload.framing,
+                    caption_cues=caption_cues,
+                    caption_style=payload.caption_style,
+                    caption_position=payload.caption_position,
                 )
             except Exception as exc:
                 raise HTTPException(status_code=500, detail=f"Render failed: {exc}") from exc
