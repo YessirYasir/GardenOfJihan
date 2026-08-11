@@ -1,3 +1,5 @@
+import time
+
 from fastapi.testclient import TestClient
 
 from garden_jihan.analysis import quran as quran_module
@@ -16,6 +18,7 @@ def test_health_and_security_headers(tmp_path):
         response = client.get("/api/health")
         assert response.status_code == 200
         assert isinstance(response.json()["auto_framing_available"], bool)
+        assert isinstance(response.json()["credential_protection_available"], bool)
         assert response.headers["x-frame-options"] == "DENY"
         assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
 
@@ -289,3 +292,99 @@ def test_project_review_list_resume_and_remove_are_local_and_validated(tmp_path)
     }
     assert removed.json() == {"removed": True}
     assert not job_folder.exists()
+
+
+def test_publishing_status_is_honest_about_youtube_and_tiktok_gates(tmp_path):
+    settings = Settings(app_data=tmp_path)
+    app = create_app(port=8765, settings=settings, session_token="test-token")
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        response = client.get("/api/publish/status")
+
+    assert response.status_code == 200
+    assert response.json()["youtube"] == {"configured": False, "connected": False, "scope": ""}
+    assert response.json()["tiktok"]["available"] is False
+    assert "audited Content Posting API" in response.json()["tiktok"]["message"]
+
+
+def test_youtube_connect_uses_loopback_and_callback_state_handler(tmp_path, monkeypatch):
+    settings = Settings(app_data=tmp_path)
+    app = create_app(port=8765, settings=settings, session_token="test-token")
+    captured = {}
+
+    def fake_start_authorization(redirect):
+        captured["redirect"] = redirect
+        return "https://accounts.google.com/o/oauth2/v2/auth?safe=1"
+
+    monkeypatch.setattr(
+        app.state.youtube_publisher,
+        "start_authorization",
+        fake_start_authorization,
+    )
+    monkeypatch.setattr(
+        app.state.youtube_publisher,
+        "complete_authorization",
+        lambda state, code: captured.update(state=state, code=code),
+    )
+    headers = {"origin": "http://127.0.0.1:8765", "x-goj-token": "test-token"}
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        connect = client.post("/api/publish/youtube/connect", headers=headers)
+        callback = client.get("/?state=safe-state&code=safe-code")
+
+    assert connect.status_code == 200
+    assert captured["redirect"] == "http://127.0.0.1:8765"
+    assert captured["state"] == "safe-state"
+    assert captured["code"] == "safe-code"
+    assert "upload-only permission" in callback.text
+
+
+def test_youtube_publish_accepts_only_a_real_project_export_and_reports_completion(
+    tmp_path,
+    monkeypatch,
+):
+    settings = Settings(app_data=tmp_path)
+    app = create_app(port=8765, settings=settings, session_token="test-token")
+    job = _complete_export_job(app, tmp_path)
+    output = settings.jobs_dir / job.id / "output"
+    output.mkdir()
+    (output / "clip_01_candidate123.mp4").write_bytes(b"rendered-video")
+    monkeypatch.setattr(
+        app.state.youtube_publisher,
+        "status",
+        lambda: {"configured": True, "connected": True, "scope": "upload"},
+    )
+    monkeypatch.setattr(app.state.youtube_publisher, "upload", lambda *_args: "youtube-video-id")
+    headers = {"origin": "http://127.0.0.1:8765", "x-goj-token": "test-token"}
+    payload = {
+        "filename": "clip_01_candidate123.mp4",
+        "title": "Garden clip",
+        "privacy": "private",
+        "made_for_kids": False,
+        "contains_synthetic_media": False,
+    }
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        missing_disclosure = client.post(
+            f"/api/jobs/{job.id}/publish/youtube",
+            headers=headers,
+            json={key: value for key, value in payload.items() if key != "made_for_kids"},
+        )
+        started = client.post(
+            f"/api/jobs/{job.id}/publish/youtube",
+            headers=headers,
+            json=payload,
+        )
+        assert started.status_code == 200
+        for _attempt in range(50):
+            status = client.get(
+                f"/api/publish/youtube/uploads/{started.json()['id']}"
+            ).json()
+            if status["status"] == "complete":
+                break
+            time.sleep(0.01)
+
+    assert missing_disclosure.status_code == 422
+    assert status["progress"] == 100
+    assert status["video_id"] == "youtube-video-id"
+    assert status["url"] == "https://www.youtube.com/watch?v=youtube-video-id"

@@ -21,7 +21,7 @@ The project is designed around four principles:
 - **Multilingual by design:** English, Arabic, and Somali are first-class modes.
 - **Faithful Qur'an workflows:** Qur'anic recognition must use verified reference data and fail safely when confidence is insufficient.
 
-> **Status: internal/public-beta candidate.** The Windows application, local security boundary, source validation, resumable local projects, Intelligence V2 ranking, manual timing, confidence-gated local audio-visual framing, manual framing controls, styled segment-timed captions, export pipeline, bundled media tools, CI/security scans, clean-Windows executable smoke tests, and Microsoft Defender release scans are operational. Checksum-pinned Tanzil installation and fail-safe Surah/Ayah matching are implemented; acoustic Qira'at recognition and Qur'an word timing are not. Trusted Windows distribution, a representative Somali gold corpus, robust speaker identity/diarization, and direct platform publishing remain active development areas.
+> **Status: internal/public-beta candidate.** The Windows application, local security boundary, source validation, resumable local projects, Intelligence V2 ranking, manual timing, confidence-gated local audio-visual framing, manual framing controls, styled segment-timed captions, export pipeline, official YouTube OAuth/resumable-upload integration, bundled media tools, CI/security scans, clean-Windows executable smoke tests, and Microsoft Defender release scans are operational. Checksum-pinned Tanzil installation and fail-safe Surah/Ayah matching are implemented; acoustic Qira'at recognition and Qur'an word timing are not. Trusted Windows distribution, a representative Somali gold corpus, robust speaker identity/diarization, production OAuth approval, and audited TikTok Direct Post remain launch blockers.
 
 ## Current workflow
 
@@ -33,6 +33,7 @@ The project is designed around four principles:
 6. Choose 9:16, 16:9, or 1:1 output. Vertical clips can use confidence-gated local face/activity framing or a manual fallback.
 7. Optionally burn in locally timed transcript captions using Garden, high-contrast, or minimal styling.
 8. Render clean MP4 clips locally and save them.
+9. Optionally publish an explicit export through the official YouTube OAuth/upload API after choosing visibility and required disclosures.
 
 Completed analyses are saved as versioned local project manifests alongside their isolated source files. The dashboard can resume kept clips, timing adjustments, and export settings after an app restart. These projects remain on the computer until the user removes them from the project library; incomplete temporary jobs continue to use automatic retention cleanup.
 
@@ -80,6 +81,8 @@ Garden of Jihan is designed as local software, not an internet-facing web servic
 The optional local meaning pass uses the MIT-licensed `intfloat/multilingual-e5-small` model through CPU-only ONNX inference. It adjusts a bounded 10% of the candidate score for within-clip topic coherence and uses semantic similarity to reduce paraphrased repeats. The original base ranking remains available when the model cannot load. Low-resource-language performance, especially Somali varieties, must pass the licensed evaluation framework before release-quality claims are made. See [`docs/SEMANTIC_MODEL.md`](docs/SEMANTIC_MODEL.md).
 
 See [`SECURITY.md`](SECURITY.md), [`PRIVACY.md`](PRIVACY.md), [`CODE_SIGNING.md`](CODE_SIGNING.md), and [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md).
+
+The YouTube publisher uses upload-only OAuth, Windows user encryption, and Google's resumable upload protocol. The repository contains no production OAuth credentials. TikTok Direct Post stays disabled until the project has an audited client and supported secure OAuth backend; no browser automation or unofficial API is used. See [`docs/PUBLISHING.md`](docs/PUBLISHING.md).
 
 ## Qur'an and Qira'at
 

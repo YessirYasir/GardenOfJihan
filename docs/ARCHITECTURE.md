@@ -33,4 +33,6 @@ Current automatic vertical framing samples faces locally with OpenCV and combine
 
 Completed jobs are atomically persisted inside their random job directory. The versioned manifest stores candidates, transcript segments, media signals, review selections, boundary edits, and export preferences. Restore validates the schema and keeps any source path inside its job directory. Saved projects are retained until the user explicitly removes them; incomplete temporary jobs remain subject to retention cleanup.
 
-Future modules include robust speaker identity/diarization, word-tracked overlays, verified Qira'at diagnostics, and OAuth publishing.
+YouTube publishing is a separate opt-in boundary: Google Desktop OAuth uses loopback PKCE and upload-only scope, refresh material is DPAPI-encrypted for the current Windows user, and only validated MP4 exports inside the selected project can enter an official resumable upload. TikTok remains gated rather than falling back to an unofficial flow.
+
+Future modules include robust speaker identity/diarization, word-tracked overlays, verified Qira'at diagnostics, and audited TikTok publishing.

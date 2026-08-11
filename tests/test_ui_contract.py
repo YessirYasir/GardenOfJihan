@@ -99,3 +99,19 @@ def test_local_project_library_resumes_and_saves_review_state():
     assert "method:'DELETE'" in app_js
     assert "addEventListener('timeupdate'" in app_js
     assert "setTimeout(()=>{if(video.currentTime>=effective.end)" not in app_js
+
+
+def test_official_publishing_ui_requires_oauth_and_disclosures():
+    html = _ui_text("index.html")
+    app_js = _ui_text("app.js")
+
+    assert "Official publishing" in html
+    assert "Google OAuth <b>Desktop app</b> client JSON" in html
+    assert "upload-only permission" in html
+    assert 'id="youtubeKids"' in html
+    assert 'id="youtubeSynthetic"' in html
+    assert "TikTok Direct Post unavailable" in html
+    assert "audited TikTok Content Posting API" in html
+    assert "/api/publish/youtube/connect" in app_js
+    assert "made_for_kids:kids==='yes'" in app_js
+    assert "contains_synthetic_media:synthetic==='yes'" in app_js

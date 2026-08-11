@@ -4,7 +4,7 @@
 
 - User media and transcripts
 - Local filesystem
-- Publishing OAuth tokens (future)
+- Publishing OAuth client and refresh tokens
 - CPU/GPU/storage resources
 - Integrity of Qur'an and language reference data
 
@@ -32,6 +32,9 @@
 - `subprocess.run([...], shell=False)`
 - bounded worker concurrency
 - no API secrets in repository or desktop binary
+- OAuth loopback state + PKCE, upload-only scope, and Windows DPAPI token encryption
+- publishing path containment to rendered MP4 files inside the selected project
+- official platform endpoints only; TikTok remains disabled without an audited supported flow
 - reference-data hash/version metadata before stable release
 - dependency scanning in CI
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 import json
 from pathlib import Path
 from typing import Annotated
@@ -25,11 +26,20 @@ from garden_jihan.models import (
     ExportRequest,
     ProjectReviewRequest,
     SourceInspectRequest,
+    YouTubePublishRequest,
+)
+from garden_jihan.publish.credentials import ProtectedJsonStore, credential_protection_available
+from garden_jihan.publish.manager import YouTubePublishManager
+from garden_jihan.publish.youtube import (
+    YouTubePublisher,
+    YouTubePublishingError,
+    YouTubeUploadMetadata,
 )
 from garden_jihan.security import LocalSecurityMiddleware, new_session_token, safe_job_path
 
 ALLOWED_UPLOAD_EXTENSIONS = {".mp4", ".mov", ".mkv", ".webm", ".m4v"}
 MAX_QURAN_REFERENCE_BYTES = 8 * 1024 * 1024
+MAX_OAUTH_CLIENT_BYTES = 64 * 1024
 
 
 def _quran_reference_status(reference: QuranReference) -> dict:
@@ -56,13 +66,41 @@ def create_app(port: int, settings: Settings | None = None, session_token: str |
     app.state.settings = settings
     app.state.session_token = token
     app.state.jobs = JobManager(settings)
+    app.state.youtube_publisher = YouTubePublisher(
+        ProtectedJsonStore(settings.app_data / "credentials" / "youtube.bin")
+    )
+    app.state.youtube_uploads = YouTubePublishManager(app.state.youtube_publisher)
 
     app.add_middleware(LocalSecurityMiddleware, session_token=token, port=port)
     ui_dir = Path(__file__).parent / "ui"
     app.mount("/static", StaticFiles(directory=ui_dir), name="static")
 
+    def youtube_callback_response(state: str, code: str, error: str) -> HTMLResponse:
+        if error:
+            safe_error = html.escape(error[:200])
+            return HTMLResponse(
+                f"<h1>YouTube was not connected</h1><p>{safe_error}</p>"
+                "<p>You can close this tab and return to Garden of Jihan.</p>",
+                status_code=400,
+            )
+        try:
+            app.state.youtube_publisher.complete_authorization(state, code)
+        except (OSError, RuntimeError, YouTubePublishingError) as exc:
+            safe_error = html.escape(str(exc))
+            return HTMLResponse(
+                f"<h1>YouTube was not connected</h1><p>{safe_error}</p>"
+                "<p>You can close this tab and return to Garden of Jihan.</p>",
+                status_code=400,
+            )
+        return HTMLResponse(
+            "<h1>YouTube connected</h1>"
+            "<p>Garden of Jihan received upload-only permission. You can close this tab.</p>"
+        )
+
     @app.get("/", response_class=HTMLResponse)
-    async def home():
+    def home(state: str = "", code: str = "", error: str = ""):
+        if state or code or error:
+            return youtube_callback_response(state, code, error)
         html = (ui_dir / "index.html").read_text(encoding="utf-8")
         return HTMLResponse(html.replace("__GOJ_TOKEN__", token))
 
@@ -74,6 +112,7 @@ def create_app(port: int, settings: Settings | None = None, session_token: str |
             "local": True,
             "version": "0.1.0",
             "auto_framing_available": auto_framing_available,
+            "credential_protection_available": credential_protection_available(),
         }
 
     @app.get("/api/quran/reference")
@@ -98,6 +137,47 @@ def create_app(port: int, settings: Settings | None = None, session_token: str |
         except (ValueError, TypeError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return _quran_reference_status(reference)
+
+    @app.get("/api/publish/status")
+    async def publishing_status():
+        return {
+            "youtube": app.state.youtube_publisher.status(),
+            "tiktok": {
+                "available": False,
+                "message": (
+                    "Direct TikTok posting remains disabled until Garden of Jihan has an "
+                    "audited Content Posting API client and a supported secure OAuth backend."
+                ),
+            },
+        }
+
+    @app.post("/api/publish/youtube/client")
+    async def install_youtube_client(file: Annotated[UploadFile, File()]):
+        raw = await file.read(MAX_OAUTH_CLIENT_BYTES + 1)
+        if len(raw) > MAX_OAUTH_CLIENT_BYTES:
+            raise HTTPException(status_code=413, detail="OAuth client file is unexpectedly large")
+        try:
+            app.state.youtube_publisher.install_client(raw)
+        except (OSError, RuntimeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return app.state.youtube_publisher.status()
+
+    @app.post("/api/publish/youtube/connect")
+    async def connect_youtube():
+        redirect_uri = f"http://127.0.0.1:{port}"
+        try:
+            authorization_url = app.state.youtube_publisher.start_authorization(redirect_uri)
+        except (RuntimeError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return {"authorization_url": authorization_url}
+
+    @app.delete("/api/publish/youtube/connection")
+    async def disconnect_youtube():
+        try:
+            app.state.youtube_publisher.disconnect()
+        except (OSError, RuntimeError) as exc:
+            raise HTTPException(status_code=500, detail="Local OAuth data could not be removed") from exc
+        return {"connected": False}
 
     @app.post("/api/source/inspect")
     async def inspect(payload: SourceInspectRequest):
@@ -312,6 +392,40 @@ def create_app(port: int, settings: Settings | None = None, session_token: str |
                 }
             )
         return {"files": files}
+
+    @app.post("/api/jobs/{job_id}/publish/youtube")
+    async def publish_youtube(job_id: str, payload: YouTubePublishRequest):
+        try:
+            job = app.state.jobs.get(job_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Unknown project") from exc
+        if job.status != "complete":
+            raise HTTPException(status_code=409, detail="Analysis is not complete")
+        if not app.state.youtube_publisher.status()["connected"]:
+            raise HTTPException(status_code=409, detail="Connect YouTube before publishing")
+        output_dir = (safe_job_path(settings.jobs_dir, job.id) / "output").resolve()
+        target = (output_dir / payload.filename).resolve()
+        if output_dir not in target.parents or not target.is_file():
+            raise HTTPException(status_code=404, detail="Exported clip is unavailable")
+        metadata = YouTubeUploadMetadata(
+            title=payload.title,
+            description=payload.description,
+            privacy=payload.privacy,
+            made_for_kids=payload.made_for_kids,
+            contains_synthetic_media=payload.contains_synthetic_media,
+        )
+        try:
+            upload = app.state.youtube_uploads.submit(target, metadata)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return upload.public()
+
+    @app.get("/api/publish/youtube/uploads/{upload_id}")
+    async def youtube_upload_status(upload_id: str):
+        try:
+            return app.state.youtube_uploads.get(upload_id).public()
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Unknown YouTube upload") from exc
 
     @app.get("/api/jobs/{job_id}/output/{filename}")
     async def output_file(job_id: str, filename: str):

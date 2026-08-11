@@ -107,3 +107,12 @@ class ExportRequest(BaseModel):
     caption_style: CaptionStyle = CaptionStyle.GARDEN
     caption_position: CaptionPosition = CaptionPosition.BOTTOM
     boundaries: dict[str, ClipBoundaryOverride] = Field(default_factory=dict)
+
+
+class YouTubePublishRequest(BaseModel):
+    filename: str = Field(pattern=r"^clip_[A-Za-z0-9_.-]+\.mp4$", max_length=180)
+    title: str = Field(min_length=1, max_length=100)
+    description: str = Field(default="", max_length=5000)
+    privacy: str = Field(default="private", pattern=r"^(private|unlisted|public)$")
+    made_for_kids: bool
+    contains_synthetic_media: bool

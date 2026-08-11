@@ -52,7 +52,7 @@ FIRST AI ANALYSIS
 The first analysis downloads the local Whisper speech model and multilingual meaning model once and caches them on this PC. This can take a few minutes depending on the internet connection. Later analyses reuse the cached models. If the meaning model is unavailable, Garden of Jihan reports that it used base ranking and never sends transcript text to a paid or cloud fallback.
 
 PRIVACY
-Garden of Jihan binds only to 127.0.0.1. Video processing happens on this PC. FFmpeg and ffprobe are bundled. There is no paid AI API key, subscription, credits, token balance, or telemetry requirement.
+Garden of Jihan binds only to 127.0.0.1. Video processing happens on this PC. FFmpeg and ffprobe are bundled. There is no paid AI API key, subscription, credits, token balance, or telemetry requirement. Optional publishing sends only the explicitly chosen export and metadata through an official platform API. YouTube OAuth material is encrypted for the current Windows user; production OAuth credentials are not embedded in this unsigned internal build.
 
 TRUST AND VERIFICATION
 Official releases are built by GitHub Actions from the public source repository. Each release includes a SHA256 checksum and GitHub build-provenance attestation. The release pipeline also runs Microsoft Defender Antivirus against the packaged application before publishing.

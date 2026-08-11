@@ -14,6 +14,7 @@ let projectSaveTimer = null;
 let projectSaveInFlight = false;
 let projectSaveQueued = false;
 let previewEnd = null;
+let exportedFiles = [];
 
 function api(path, options={}) {
   const headers = new Headers(options.headers || {});
@@ -37,7 +38,7 @@ function queueProjectSave(){
   clearTimeout(projectSaveTimer);document.getElementById('projectSaveStatus').textContent='Changes waiting to save…';projectSaveTimer=setTimeout(saveProject,450);
 }
 function restoreProject(data,{defaultStrong=false}={}){
-  const project=data.project||{};currentJob=data.id;candidates=data.candidates||[];boundaries=project.boundaries||{};
+  const project=data.project||{};currentJob=data.id;candidates=data.candidates||[];boundaries=project.boundaries||{};exportedFiles=[];syncPublishFiles();
   const validIds=new Set(candidates.map(candidate=>candidate.id));const restored=(project.selected_ids||[]).filter(id=>validIds.has(id));selected=new Set(restored.length||!defaultStrong?restored:candidates.filter(candidate=>candidate.score>=85).map(candidate=>candidate.id));
   document.getElementById('projectName').value=project.name||'Untitled project';
   document.getElementById('aspect').value=project.aspect||'9:16';document.getElementById('framing').value=project.framing||'auto';document.getElementById('captions').value=project.captions?'segments':'off';document.getElementById('captionStyle').value=project.caption_style||'garden';document.getElementById('captionPosition').value=project.caption_position||'bottom';
@@ -58,7 +59,7 @@ async function resumeProject(jobId){
 }
 async function removeProject(project){
   if(!window.confirm(`Remove “${project.name}” and its local source, clips, and review data from this computer?`))return;
-  try{const res=await api(`/api/projects/${project.id}`,{method:'DELETE'});const data=await res.json();if(!res.ok)throw new Error(data.detail||'Could not remove project');if(currentJob===project.id){currentJob=null;candidates=[];selected=new Set();boundaries={};showStep(0);}loadProjects();}
+  try{const res=await api(`/api/projects/${project.id}`,{method:'DELETE'});const data=await res.json();if(!res.ok)throw new Error(data.detail||'Could not remove project');if(currentJob===project.id){currentJob=null;candidates=[];selected=new Set();boundaries={};exportedFiles=[];syncPublishFiles();showStep(0);}loadProjects();}
   catch(err){window.alert(err.message);}
 }
 function showStep(n,{scroll=true}={}){
@@ -228,7 +229,7 @@ const renderClipsButton=document.getElementById('renderClips');
 let exportBusy=false;
 renderClipsButton.addEventListener('click',async()=>{
   if(exportBusy)return;
-  const box=document.getElementById('exportMessage');const list=document.getElementById('downloadList');list.innerHTML='';box.classList.remove('hidden','error');
+  const box=document.getElementById('exportMessage');const list=document.getElementById('downloadList');list.innerHTML='';exportedFiles=[];syncPublishFiles();box.classList.remove('hidden','error');
   if(!currentJob||selected.size===0){box.textContent='Choose at least one clip first.';return;}
   const captions=document.getElementById('captions').value==='segments';
   if(captions&&candidates.some(candidate=>selected.has(candidate.id)&&candidate.mode==='quran')){box.classList.add('error');box.textContent='Qur’an burn-in captions stay disabled until verified acoustic timing exists. Export without captions and use the reference-backed review panel.';return;}
@@ -237,12 +238,29 @@ renderClipsButton.addEventListener('click',async()=>{
   try{
     const selectedBoundaries=Object.fromEntries([...selected].filter(id=>boundaries[id]).map(id=>[id,boundaries[id]]));
     const res=await api(`/api/jobs/${currentJob}/export`,{method:'POST',body:JSON.stringify({candidate_ids:[...selected],aspect:document.getElementById('aspect').value,framing:document.getElementById('framing').value,captions,caption_style:document.getElementById('captionStyle').value,caption_position:document.getElementById('captionPosition').value,boundaries:selectedBoundaries})});const data=await res.json();if(!res.ok)throw new Error(data.detail||'Render failed');
-    box.innerHTML=`<strong>Ready.</strong> ${data.files.length} clip${data.files.length===1?'':'s'} rendered.`;
+    box.innerHTML=`<strong>Ready.</strong> ${data.files.length} clip${data.files.length===1?'':'s'} rendered.`;exportedFiles=data.files||[];syncPublishFiles();
     [...new Set(data.files.map(file=>file.framing?.message).filter(Boolean))].forEach(message=>{const note=document.createElement('div');note.className='export-note';note.textContent=message;box.appendChild(note);});
     data.files.forEach(file=>{const a=document.createElement('a');a.className='download-link';a.href=file.url;a.download=file.name;a.title=file.framing?.message||'';a.innerHTML=`<span>${escapeHtml(file.name)}</span><strong>Save ↓</strong>`;list.appendChild(a);});
   }catch(err){box.classList.add('error');box.textContent=err.message;}
   finally{exportBusy=false;renderClipsButton.disabled=false;renderClipsButton.setAttribute('aria-busy','false');}
 });
+
+let youtubeConnected=false;
+function syncPublishFiles(){
+  const select=document.getElementById('publishFile');const previous=select.value;select.innerHTML='';
+  if(!exportedFiles.length){const option=document.createElement('option');option.value='';option.textContent='Export a clip first';select.appendChild(option);}else{exportedFiles.forEach(file=>{const option=document.createElement('option');option.value=file.name;option.textContent=file.name;select.appendChild(option);});if(exportedFiles.some(file=>file.name===previous))select.value=previous;if(!document.getElementById('youtubeTitle').value)document.getElementById('youtubeTitle').value=select.value.replace(/^clip_\d+_/,'').replace(/\.mp4$/,'').replace(/[_-]+/g,' ');}
+  document.getElementById('publishYoutube').disabled=!youtubeConnected||!exportedFiles.length;
+}
+async function refreshPublishingStatus(){
+  try{const res=await api('/api/publish/status');const data=await res.json();if(!res.ok)throw new Error(data.detail||'Publishing status unavailable');const youtube=data.youtube||{};youtubeConnected=Boolean(youtube.connected);const status=document.getElementById('youtubeStatus');status.textContent=youtubeConnected?'YouTube connected':youtube.configured?'YouTube ready to connect':'YouTube OAuth not configured';status.classList.toggle('connected',youtubeConnected);document.getElementById('connectYoutube').disabled=!youtube.configured||youtubeConnected;document.getElementById('disconnectYoutube').disabled=!youtubeConnected;document.getElementById('tiktokStatus').textContent=data.tiktok?.message||'Official TikTok posting is unavailable.';syncPublishFiles();return youtubeConnected;}
+  catch(err){const box=document.getElementById('publishMessage');box.classList.remove('hidden');box.classList.add('error');box.textContent=err.message;return false;}
+}
+document.getElementById('installYoutubeClient').addEventListener('click',async()=>{const input=document.getElementById('youtubeClientFile');const box=document.getElementById('publishMessage');box.classList.remove('hidden','error');if(!input.files.length){box.classList.add('error');box.textContent='Choose a Google OAuth Desktop app JSON file.';return;}const form=new FormData();form.append('file',input.files[0]);try{const res=await api('/api/publish/youtube/client',{method:'POST',body:form});const data=await res.json();if(!res.ok)throw new Error(data.detail||'OAuth client install failed');box.textContent='YouTube OAuth client stored with Windows user encryption. Connect the account next.';refreshPublishingStatus();}catch(err){box.classList.add('error');box.textContent=err.message;}});
+document.getElementById('connectYoutube').addEventListener('click',async()=>{const box=document.getElementById('publishMessage');box.classList.remove('hidden','error');try{const res=await api('/api/publish/youtube/connect',{method:'POST'});const data=await res.json();if(!res.ok)throw new Error(data.detail||'Could not start YouTube authorization');const popup=window.open('','goj-youtube-oauth','width=720,height=760');if(!popup)throw new Error('Allow the YouTube authorization window, then try again.');popup.opener=null;popup.location.href=data.authorization_url;box.textContent='Complete Google authorization in the new window. Only upload permission is requested.';let checks=0;const timer=setInterval(async()=>{checks+=1;if(await refreshPublishingStatus()||checks>=150)clearInterval(timer);},2000);}catch(err){box.classList.add('error');box.textContent=err.message;}});
+document.getElementById('disconnectYoutube').addEventListener('click',async()=>{if(!window.confirm('Forget the YouTube connection on this computer? You can also revoke Garden of Jihan in your Google Account permissions.'))return;const box=document.getElementById('publishMessage');try{const res=await api('/api/publish/youtube/connection',{method:'DELETE'});const data=await res.json();if(!res.ok)throw new Error(data.detail||'Could not forget connection');box.classList.remove('hidden','error');box.textContent='Local YouTube tokens removed. Revoke the app in Google Account permissions if you also want server-side revocation.';refreshPublishingStatus();}catch(err){box.classList.remove('hidden');box.classList.add('error');box.textContent=err.message;}});
+async function pollYoutubeUpload(uploadId){
+  const box=document.getElementById('publishMessage');try{const res=await api(`/api/publish/youtube/uploads/${uploadId}`);const data=await res.json();if(!res.ok)throw new Error(data.detail||'Upload status unavailable');box.textContent=`${data.message} • ${data.progress}%`;if(data.status==='failed')throw new Error(data.error||'YouTube upload failed');if(data.status==='complete'){box.innerHTML='<strong>YouTube accepted the upload.</strong>';const link=document.createElement('a');link.className='publish-result';link.href=data.url;link.target='_blank';link.rel='noreferrer';link.textContent='Open uploaded video on YouTube ↗';box.appendChild(link);document.getElementById('publishYoutube').disabled=false;document.getElementById('publishYoutube').setAttribute('aria-busy','false');return;}setTimeout(()=>pollYoutubeUpload(uploadId),1000);}catch(err){box.classList.add('error');box.textContent=err.message;document.getElementById('publishYoutube').disabled=false;document.getElementById('publishYoutube').setAttribute('aria-busy','false');}}
+document.getElementById('publishYoutube').addEventListener('click',async()=>{const box=document.getElementById('publishMessage');const button=document.getElementById('publishYoutube');box.classList.remove('hidden','error');const filename=document.getElementById('publishFile').value;const title=document.getElementById('youtubeTitle').value.trim();const kids=document.getElementById('youtubeKids').value;const synthetic=document.getElementById('youtubeSynthetic').value;if(!filename||!title||!kids||!synthetic){box.classList.add('error');box.textContent='Choose an exported clip, title, audience, and synthetic-media disclosure.';return;}button.disabled=true;button.setAttribute('aria-busy','true');box.textContent='Starting official YouTube upload…';const payload={filename,title,description:document.getElementById('youtubeDescription').value,privacy:document.getElementById('youtubePrivacy').value,made_for_kids:kids==='yes',contains_synthetic_media:synthetic==='yes'};try{const res=await api(`/api/jobs/${currentJob}/publish/youtube`,{method:'POST',body:JSON.stringify(payload)});const data=await res.json();if(!res.ok)throw new Error(data.detail||'Could not start YouTube upload');pollYoutubeUpload(data.id);}catch(err){box.classList.add('error');box.textContent=err.message;button.disabled=false;button.setAttribute('aria-busy','false');}});
 
 window.addEventListener('scroll',()=>{
   const y=Math.min(window.scrollY,900);
@@ -254,3 +272,4 @@ function formatTime(sec){sec=Math.max(0,Math.floor(sec));const m=Math.floor(sec/
 function escapeHtml(value){return String(value).replace(/[&<>'"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));}
 showStep(0,{scroll:false});
 loadProjects();
+refreshPublishingStatus();

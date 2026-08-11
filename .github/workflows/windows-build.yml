@@ -69,7 +69,7 @@ jobs:
               if ($process.HasExited) { throw "GardenOfJihan.exe exited before becoming healthy" }
               try {
                 $health = Invoke-RestMethod -Uri "http://127.0.0.1:8765/api/health" -TimeoutSec 3
-                if ($health.ok -eq $true -and $health.local -eq $true -and $health.auto_framing_available -eq $true) {
+                if ($health.ok -eq $true -and $health.local -eq $true -and $health.auto_framing_available -eq $true -and $health.credential_protection_available -eq $true) {
                   $healthy = $true
                   break
                 }
