@@ -116,7 +116,7 @@ document.getElementById('renderClips').addEventListener('click',async()=>{
   box.textContent='Rendering locally with FFmpeg…';
   try{
     const selectedBoundaries=Object.fromEntries([...selected].filter(id=>boundaries[id]).map(id=>[id,boundaries[id]]));
-    const res=await api(`/api/jobs/${currentJob}/export`,{method:'POST',body:JSON.stringify({candidate_ids:[...selected],aspect:document.getElementById('aspect').value,boundaries:selectedBoundaries})});const data=await res.json();if(!res.ok)throw new Error(data.detail||'Render failed');
+    const res=await api(`/api/jobs/${currentJob}/export`,{method:'POST',body:JSON.stringify({candidate_ids:[...selected],aspect:document.getElementById('aspect').value,framing:document.getElementById('framing').value,boundaries:selectedBoundaries})});const data=await res.json();if(!res.ok)throw new Error(data.detail||'Render failed');
     box.innerHTML=`<strong>Ready.</strong> ${data.files.length} clip${data.files.length===1?'':'s'} rendered.`;
     data.files.forEach(file=>{const a=document.createElement('a');a.className='download-link';a.href=file.url;a.download=file.name;a.innerHTML=`<span>${escapeHtml(file.name)}</span><strong>Save ↓</strong>`;list.appendChild(a);});
   }catch(err){box.classList.add('error');box.textContent=err.message;}
