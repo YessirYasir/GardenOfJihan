@@ -11,8 +11,8 @@ let candidates = [];
 let selected = new Set();
 let boundaries = {};
 let projectSaveTimer = null;
-let projectSaveInFlight = false;
-let projectSaveQueued = false;
+let pendingProjectSave = null;
+let projectSaveQueue = Promise.resolve(true);
 let previewEnd = null;
 let exportedFiles = [];
 
@@ -26,19 +26,31 @@ function projectPayload(){
   const captionMode=document.getElementById('captions').value;
   return {name:document.getElementById('projectName').value.trim()||'Untitled project',selected_ids:[...selected],boundaries,aspect:document.getElementById('aspect').value,framing:document.getElementById('framing').value,captions:captionMode!=='off',word_tracking:captionMode==='words',caption_style:document.getElementById('captionStyle').value,caption_position:document.getElementById('captionPosition').value};
 }
-async function saveProject(){
-  if(!currentJob)return;
-  if(projectSaveInFlight){projectSaveQueued=true;return;}
-  const jobId=currentJob;const payload=projectPayload();projectSaveInFlight=true;const status=document.getElementById('projectSaveStatus');status.textContent='Saving locally…';
-  try{const res=await api(`/api/jobs/${jobId}/project`,{method:'PUT',body:JSON.stringify(payload)});const data=await res.json();if(!res.ok)throw new Error(data.detail||'Project save failed');if(currentJob===jobId)status.textContent='Saved locally';loadProjects();}
-  catch(err){if(currentJob===jobId)status.textContent=`Not saved: ${err.message}`;}
-  finally{projectSaveInFlight=false;if(projectSaveQueued){projectSaveQueued=false;saveProject();}}
+function enqueueProjectSave(jobId,payload){
+  const persist=async()=>{
+    const status=document.getElementById('projectSaveStatus');if(currentJob===jobId)status.textContent='Saving locally…';
+    try{const res=await api(`/api/jobs/${jobId}/project`,{method:'PUT',body:JSON.stringify(payload)});const data=await res.json();if(!res.ok)throw new Error(data.detail||'Project save failed');if(currentJob===jobId)status.textContent='Saved locally';loadProjects();return true;}
+    catch(err){if(currentJob===jobId)status.textContent=`Not saved: ${err.message}`;return false;}
+  };
+  projectSaveQueue=projectSaveQueue.then(persist,persist);return projectSaveQueue;
+}
+function flushPendingProjectSave(){
+  clearTimeout(projectSaveTimer);projectSaveTimer=null;
+  if(!pendingProjectSave)return projectSaveQueue;
+  const snapshot=pendingProjectSave;pendingProjectSave=null;
+  return enqueueProjectSave(snapshot.jobId,snapshot.payload);
+}
+function saveProject(){
+  if(!currentJob)return Promise.resolve(true);
+  pendingProjectSave={jobId:currentJob,payload:projectPayload()};
+  return flushPendingProjectSave();
 }
 function queueProjectSave(){
   if(!currentJob)return;
-  clearTimeout(projectSaveTimer);document.getElementById('projectSaveStatus').textContent='Changes waiting to save…';projectSaveTimer=setTimeout(saveProject,450);
+  pendingProjectSave={jobId:currentJob,payload:projectPayload()};clearTimeout(projectSaveTimer);document.getElementById('projectSaveStatus').textContent='Changes waiting to save…';projectSaveTimer=setTimeout(flushPendingProjectSave,450);
 }
 function restoreProject(data,{defaultStrong=false}={}){
+  if(pendingProjectSave&&pendingProjectSave.jobId!==data.id)flushPendingProjectSave();
   const project=data.project||{};currentJob=data.id;candidates=data.candidates||[];boundaries=project.boundaries||{};exportedFiles=[];syncPublishFiles();
   const validIds=new Set(candidates.map(candidate=>candidate.id));const restored=(project.selected_ids||[]).filter(id=>validIds.has(id));selected=new Set(restored.length||!defaultStrong?restored:candidates.filter(candidate=>candidate.score>=85).map(candidate=>candidate.id));
   document.getElementById('projectName').value=project.name||'Untitled project';
@@ -60,6 +72,7 @@ async function resumeProject(jobId){
 }
 async function removeProject(project){
   if(!window.confirm(`Remove “${project.name}” and its local source, clips, and review data from this computer?`))return;
+  if(pendingProjectSave?.jobId===project.id){clearTimeout(projectSaveTimer);projectSaveTimer=null;pendingProjectSave=null;}
   try{const res=await api(`/api/projects/${project.id}`,{method:'DELETE'});const data=await res.json();if(!res.ok)throw new Error(data.detail||'Could not remove project');if(currentJob===project.id){currentJob=null;candidates=[];selected=new Set();boundaries={};exportedFiles=[];syncPublishFiles();showStep(0);}loadProjects();}
   catch(err){window.alert(err.message);}
 }
@@ -286,8 +299,10 @@ document.getElementById('publishYoutube').addEventListener('click',async()=>{con
 document.getElementById('quitApp').addEventListener('click',async event=>{
   const button=event.currentTarget;
   if(!window.confirm('Quit Garden of Jihan? Saved projects stay on this computer.'))return;
-  button.disabled=true;button.textContent='Closing…';
+  button.disabled=true;button.textContent='Saving…';
   try{
+    if(!await flushPendingProjectSave())throw new Error('Project changes could not be saved. Fix the save error before quitting.');
+    button.textContent='Closing…';
     const res=await api('/api/app/quit',{method:'POST'});const data=await res.json();if(!res.ok)throw new Error(data.detail||'Could not close the app safely');
     const screen=document.createElement('div');screen.className='shutdown-screen';screen.innerHTML='<div><h2>Garden of Jihan is closed</h2><p>Your local projects are saved. You can close this browser tab.</p></div>';document.body.appendChild(screen);
   }catch(err){button.disabled=false;button.textContent='Quit app';window.alert(err.message);}

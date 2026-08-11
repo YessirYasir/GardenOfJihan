@@ -117,6 +117,20 @@ def test_local_project_library_resumes_and_saves_review_state():
     assert "setTimeout(()=>{if(video.currentTime>=effective.end)" not in app_js
 
 
+def test_project_saves_are_snapshotted_serialized_and_flushed_before_quit():
+    app_js = _ui_text("app.js")
+
+    assert "let pendingProjectSave = null;" in app_js
+    assert "let projectSaveQueue = Promise.resolve(true);" in app_js
+    assert "pendingProjectSave={jobId:currentJob,payload:projectPayload()}" in app_js
+    assert "projectSaveQueue=projectSaveQueue.then(persist,persist)" in app_js
+    assert "pendingProjectSave&&pendingProjectSave.jobId!==data.id" in app_js
+    assert "if(!await flushPendingProjectSave())" in app_js
+    assert app_js.index("if(!await flushPendingProjectSave())") < app_js.index(
+        "api('/api/app/quit',{method:'POST'})"
+    )
+
+
 def test_official_publishing_ui_requires_oauth_and_disclosures():
     html = _ui_text("index.html")
     app_js = _ui_text("app.js")
