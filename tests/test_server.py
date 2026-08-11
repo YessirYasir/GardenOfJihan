@@ -203,7 +203,83 @@ def test_quran_export_captions_fail_closed_without_acoustic_timing(tmp_path, mon
         )
 
     assert response.status_code == 409
-    assert "verified acoustic timing" in response.json()["detail"]
+    assert "segment captions are disabled" in response.json()["detail"]
+
+
+def test_quran_word_caption_export_requires_and_uses_supported_acoustic_alignment(
+    tmp_path, monkeypatch
+):
+    settings = Settings(app_data=tmp_path)
+    app = create_app(port=8765, settings=settings, session_token="test-token")
+    job = _complete_export_job(app, tmp_path, AnalysisMode.QURAN)
+    job.candidates[0].quran_match = {
+        "status": "verified",
+        "acoustic_timing_status": "supported",
+        "word_alignment": [
+            {
+                "reference_word": "إِنَّا",
+                "ayah": 1,
+                "matched": True,
+                "optional": False,
+                "acoustic_start": 8.1,
+                "acoustic_end": 9.0,
+            },
+            {
+                "reference_word": "أَعْطَيْنَاكَ",
+                "ayah": 1,
+                "matched": True,
+                "optional": False,
+                "acoustic_start": 9.1,
+                "acoustic_end": 10.2,
+            },
+        ],
+    }
+    captured = {}
+    monkeypatch.setattr("garden_jihan.server.probe_media", lambda *_args: {"duration": 30.0})
+
+    def fake_render(*args, **kwargs):
+        captured.update(args=args, kwargs=kwargs)
+        args[1].write_bytes(b"rendered")
+
+    monkeypatch.setattr("garden_jihan.media.exporting.render_clip", fake_render)
+    headers = {"origin": "http://127.0.0.1:8765", "x-goj-token": "test-token"}
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        unavailable = client.post(
+            f"/api/jobs/{job.id}/export",
+            headers=headers,
+            json={"candidate_ids": ["candidate123"], "captions": True, "word_tracking": True},
+        )
+        assert unavailable.status_code == 202
+        export = _await_export(client, unavailable)
+
+    assert export["status"] == "complete"
+    cue = captured["kwargs"]["caption_cues"][0]
+    assert cue.words == ("إِنَّا", "أَعْطَيْنَاكَ")
+    assert round(cue.start, 3) == 0.1
+
+
+def test_quran_word_caption_export_fails_closed_when_acoustic_alignment_is_missing(
+    tmp_path, monkeypatch
+):
+    settings = Settings(app_data=tmp_path)
+    app = create_app(port=8765, settings=settings, session_token="test-token")
+    job = _complete_export_job(app, tmp_path, AnalysisMode.QURAN)
+    job.candidates[0].quran_match = {
+        "status": "verified",
+        "acoustic_timing_status": "uncertain",
+        "word_alignment": [],
+    }
+    monkeypatch.setattr("garden_jihan.server.probe_media", lambda *_args: {"duration": 30.0})
+    headers = {"origin": "http://127.0.0.1:8765", "x-goj-token": "test-token"}
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        response = client.post(
+            f"/api/jobs/{job.id}/export",
+            headers=headers,
+            json={"candidate_ids": ["candidate123"], "captions": True, "word_tracking": True},
+        )
+
+    assert response.status_code == 409
+    assert "remain disabled" in response.json()["detail"]
 
 
 def test_export_runs_off_request_thread_and_rejects_duplicate_project_export(

@@ -2,10 +2,17 @@ from pathlib import Path
 
 import pytest
 
-from garden_jihan.analysis.transcription import TranscriptSegment
+from garden_jihan.analysis.transcription import TranscriptSegment, TranscriptWord
 from garden_jihan.media import render
 from garden_jihan.media.framing import FramingPoint
-from garden_jihan.media.render import CaptionCue, caption_cues_for_range, render_clip
+from garden_jihan.media.render import (
+    CaptionCue,
+    TrackedCaptionCue,
+    caption_cues_for_range,
+    quran_word_caption_cues_for_range,
+    render_clip,
+    word_caption_cues_for_range,
+)
 
 
 def test_caption_cues_use_real_segment_timing_and_clip_to_manual_boundaries():
@@ -15,13 +22,65 @@ def test_caption_cues_use_real_segment_timing_and_clip_to_manual_boundaries():
         TranscriptSegment(18.0, 22.0, "Inside and after"),
         TranscriptSegment(24.0, 25.0, "Outside"),
     ]
-
     assert caption_cues_for_range(segments, 10.0, 20.0) == [
         CaptionCue(0.0, 2.0, "Before and inside"),
         CaptionCue(2.0, 6.5, "Somali – العربية"),
         CaptionCue(8.0, 10.0, "Inside and after"),
     ]
 
+
+def test_word_caption_cues_follow_acoustic_timestamps_and_keep_context():
+    segment = TranscriptSegment(
+        5.0,
+        9.0,
+        "Soomaali iyo العربية",
+        [
+            TranscriptWord(5.1, 6.0, "Soomaali", 0.91),
+            TranscriptWord(6.1, 6.5, "iyo", 0.87),
+            TranscriptWord(6.7, 8.5, "العربية", 0.89),
+        ],
+    )
+
+    cues = word_caption_cues_for_range([segment], 5.5, 8.0)
+
+    assert cues[0].start == 0.0
+    assert cues[0].end == pytest.approx(0.6)
+    assert cues[0].words == ("Soomaali", "iyo", "العربية")
+    assert cues[0].active_index == 0
+    assert [cue.active_index for cue in cues] == [0, 1, 2]
+    assert cues[-1].end == 2.5
+
+
+def test_quran_word_cues_require_supported_timing_and_use_reference_display_text():
+    match = {
+        "status": "verified",
+        "acoustic_timing_status": "supported",
+        "word_alignment": [
+            {
+                "reference_word": "إِنَّا",
+                "ayah": 1,
+                "matched": True,
+                "optional": False,
+                "acoustic_start": 1.0,
+                "acoustic_end": 1.8,
+            },
+            {
+                "reference_word": "أَعْطَيْنَاكَ",
+                "ayah": 1,
+                "matched": True,
+                "optional": False,
+                "acoustic_start": 1.9,
+                "acoustic_end": 3.0,
+            },
+        ],
+    }
+
+    cues = quran_word_caption_cues_for_range(match, 0.5, 3.5)
+
+    assert cues[0].words == ("إِنَّا", "أَعْطَيْنَاكَ")
+    assert cues[0].start == 0.5
+    match["acoustic_timing_status"] = "uncertain"
+    assert quran_word_caption_cues_for_range(match, 0.5, 3.5) == []
 
 def test_render_burns_escaped_unicode_ass_and_removes_temporary_file(tmp_path, monkeypatch):
     captured = {}
@@ -56,6 +115,32 @@ def test_render_burns_escaped_unicode_ass_and_removes_temporary_file(tmp_path, m
     assert "جيهان" in captured["captions"]
     assert captured["kwargs"] == {"check": True, "timeout": 600, "shell": False}
     assert not list(tmp_path.glob("*.captions.ass"))
+
+
+def test_render_highlights_only_constructed_tracked_words_and_escapes_user_text(
+    tmp_path, monkeypatch
+):
+    captured = {}
+
+    def fake_run(_command, **_kwargs):
+        caption_path = next(tmp_path.glob("*.captions.ass"))
+        captured["captions"] = caption_path.read_text(encoding="utf-8")
+
+    monkeypatch.setattr(render, "ffmpeg_path", lambda: "ffmpeg")
+    monkeypatch.setattr(render.subprocess, "run", fake_run)
+    render_clip(
+        Path("source.mp4"),
+        tmp_path / "tracked.mp4",
+        0,
+        2,
+        caption_cues=[
+            TrackedCaptionCue(0.0, 1.0, ("جيهان", r"{\bord99}"), active_index=0)
+        ],
+    )
+
+    content = captured["captions"]
+    assert r"{\1c&H003DCEFF&\b1}جيهان{\rCaption}" in content
+    assert r"{\bord99}" not in content
 
 
 def test_split_stack_applies_captions_after_compositing(tmp_path, monkeypatch):

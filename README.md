@@ -21,7 +21,7 @@ The project is designed around four principles:
 - **Multilingual by design:** English, Arabic, and Somali are first-class modes.
 - **Faithful Qur'an workflows:** Qur'anic recognition must use verified reference data and fail safely when confidence is insufficient.
 
-> **Status: internal/public-beta candidate.** The Windows application, local security boundary, source validation, resumable local projects, Intelligence V2 ranking, manual timing, confidence-gated local audio-visual framing, manual framing controls, styled segment-timed captions, export pipeline, official YouTube OAuth/resumable-upload integration, bundled media tools, CI/security scans, clean-Windows executable smoke tests, and Microsoft Defender release scans are operational. Checksum-pinned Tanzil installation and fail-safe Surah/Ayah matching are implemented; acoustic Qira'at recognition and Qur'an word timing are not. Trusted Windows distribution, a representative Somali gold corpus, robust speaker identity/diarization, production OAuth approval, and audited TikTok Direct Post remain launch blockers.
+> **Status: internal/public-beta candidate.** The Windows application, local security boundary, source validation, resumable local projects, Intelligence V2 ranking, manual timing, confidence-gated local audio-visual framing, manual framing controls, styled segment captions, confidence-gated acoustic word highlights, background export pipeline, official YouTube OAuth/resumable-upload integration, bundled media tools, CI/security scans, clean-Windows executable smoke tests, and Microsoft Defender release scans are operational. Checksum-pinned Tanzil installation and fail-safe Surah/Ayah matching are implemented. Qur'an word captions use reference display text only when every locating word maps one-to-one to sufficiently confident local acoustic timestamps; otherwise they remain disabled. Acoustic Qira'at recognition is not implemented or claimed. Trusted Windows distribution, representative Somali and recitation-timing evaluation corpora, robust speaker identity/diarization, production OAuth approval, and audited TikTok Direct Post remain launch blockers.
 
 ## Current workflow
 
@@ -31,7 +31,7 @@ The project is designed around four principles:
 4. Rank non-overlapping moments using local multilingual embeddings, transcript structure, audio energy, visual activity, and YouTube replay data when available.
 5. Preview clips, adjust start/end timing, and select the strongest moments.
 6. Choose 9:16, 16:9, or 1:1 output. Vertical clips can use confidence-gated local face/activity framing or a manual fallback.
-7. Optionally burn in locally timed transcript captions using Garden, high-contrast, or minimal styling.
+7. Optionally burn in segment-timed captions or local acoustic word highlights using Garden, high-contrast, or minimal styling.
 8. Render clean MP4 clips in a bounded background queue, follow clip-by-clip progress, and save them without freezing the local editor.
 9. Optionally publish an explicit export through the official YouTube OAuth/upload API after choosing visibility and required disclosures.
 
@@ -95,7 +95,7 @@ The matcher architecture separates:
 
 Current releases do not claim Qira'at identification. The UI reports that a reading was not assessed rather than inventing one.
 
-Qur'an burn-in captions are also disabled until acoustic evidence can support verified timing. The editor may display checksum-verified reference text and textual word alignment for review, but it does not misrepresent those textual alignments as spoken-word timestamps.
+Qur'an word captions are fail-closed. They use the checksum-verified reference display text only after a verified passage match, complete one-to-one word alignment, monotonically ordered local speech-model timestamps, and a minimum per-word acoustic confidence threshold. The UI labels this timing as model-estimated rather than human-verified. If any check fails, the app refuses the Qur'an caption export. This timing evidence does not identify Qira'at, a reader, or a transmission.
 
 The offline matcher uses a reviewed, checksum-pinned Tanzil profile. Quran Foundation / Quran.com remains the intended human-verification layer; its authenticated Content API client secret must never be embedded in this open-source desktop application. See [`data/quran/README.md`](data/quran/README.md).
 

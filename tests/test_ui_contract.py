@@ -47,15 +47,18 @@ def test_analysis_progress_is_accessible_and_does_not_scroll_on_launch():
     assert ".trust-row{justify-content:center;overflow:visible;flex-wrap:wrap" in app_css
 
 
-def test_caption_controls_are_functional_and_do_not_claim_word_tracking():
+def test_caption_controls_offer_honest_acoustic_word_tracking():
     html = _ui_text("index.html")
     app_js = _ui_text("app.js")
 
     for control in ('id="captions"', 'id="captionStyle"', 'id="captionPosition"'):
         assert control in html
-    assert "Uses local transcript segment timing, not word tracking." in html
-    assert "Qur’an burn-in stays disabled until verified acoustic timing" in html
+    assert '<option value="words">Acoustic word highlight (beta)</option>' in html
+    assert "conservative acoustic confidence checks" in html
+    assert "timing remains model-estimated" in html
+    assert "Qira’at is never assessed" in html
     assert "caption_style:document.getElementById('captionStyle').value" in app_js
+    assert "word_tracking:wordTracking" in app_js
     assert "candidate.mode==='quran'" in app_js
     assert "let exportBusy=false;" in app_js
     assert "/api/exports/${exportId}" in app_js

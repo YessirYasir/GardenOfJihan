@@ -286,6 +286,7 @@ class QuranWordAlignment:
     optional: bool = False
     similarity: float = 0.0
     query_word: str | None = None
+    query_index: int | None = None
 
     def public(self) -> dict:
         data = asdict(self)
@@ -440,6 +441,7 @@ def _align_words(
                     matched=True,
                     similarity=similarity,
                     query_word=query_display[query_index],
+                    query_index=query_index,
                 )
             )
         else:

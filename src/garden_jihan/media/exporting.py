@@ -10,7 +10,7 @@ from pathlib import Path
 
 from garden_jihan.analysis.signals import MediaSignals
 from garden_jihan.media.framing import FramingDecision, analyze_auto_framing
-from garden_jihan.media.render import CaptionCue, render_clip
+from garden_jihan.media.render import CaptionCue, TrackedCaptionCue, render_clip
 
 
 @dataclass(frozen=True, slots=True)
@@ -19,7 +19,7 @@ class PreparedExportClip:
     filename: str
     start: float
     end: float
-    caption_cues: tuple[CaptionCue, ...] = ()
+    caption_cues: tuple[CaptionCue | TrackedCaptionCue, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

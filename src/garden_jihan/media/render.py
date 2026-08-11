@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import re
 import subprocess
 from collections.abc import Iterable
@@ -16,6 +17,14 @@ class CaptionCue:
     start: float
     end: float
     text: str
+
+
+@dataclass(frozen=True, slots=True)
+class TrackedCaptionCue:
+    start: float
+    end: float
+    words: tuple[str, ...]
+    active_index: int
 
 
 CAPTION_STYLES = {
@@ -67,6 +76,94 @@ def caption_cues_for_range(
     return cues
 
 
+def _tracked_cues(words: list[tuple[float, float, str]], start: float, end: float):
+    cues: list[TrackedCaptionCue] = []
+    words = [
+        word
+        for word in words
+        if all(math.isfinite(value) for value in word[:2]) and word[1] > word[0]
+    ]
+    for group_start in range(0, len(words), 7):
+        group = words[group_start : group_start + 7]
+        labels = tuple(word[2] for word in group)
+        for index, (word_start, word_end, _text) in enumerate(group):
+            cue_start = max(start, word_start)
+            next_start = group[index + 1][0] if index + 1 < len(group) else word_end
+            cue_end = min(end, max(word_end, next_start))
+            if cue_end - cue_start < 0.05:
+                continue
+            cues.append(
+                TrackedCaptionCue(
+                    start=cue_start - start,
+                    end=cue_end - start,
+                    words=labels,
+                    active_index=index,
+                )
+            )
+    return cues
+
+
+def word_caption_cues_for_range(
+    segments: Iterable[TranscriptSegment],
+    start: float,
+    end: float,
+) -> list[TrackedCaptionCue]:
+    """Build honest word highlights only from local model acoustic timestamps."""
+    if end <= start:
+        raise ValueError("Clip end must be after start")
+    cues: list[TrackedCaptionCue] = []
+    for segment in segments:
+        if segment.end <= start or segment.start >= end:
+            continue
+        words = [
+            (word.start, word.end, word.text.strip())
+            for word in segment.words
+            if word.end > start and word.start < end and word.text.strip()
+        ]
+        cues.extend(_tracked_cues(words, start, end))
+    return cues
+
+
+def quran_word_caption_cues_for_range(
+    match: dict,
+    start: float,
+    end: float,
+) -> list[TrackedCaptionCue]:
+    """Use sacred reference display text only after conservative acoustic alignment."""
+    if end <= start:
+        raise ValueError("Clip end must be after start")
+    if match.get("status") != "verified" or match.get("acoustic_timing_status") != "supported":
+        return []
+    alignment = match.get("word_alignment")
+    if not isinstance(alignment, list):
+        return []
+    by_ayah: dict[int, list[tuple[float, float, str]]] = {}
+    for word in alignment:
+        if not isinstance(word, dict):
+            return []
+        if not word.get("matched") or word.get("optional"):
+            continue
+        try:
+            word_start = float(word["acoustic_start"])
+            word_end = float(word["acoustic_end"])
+            ayah = int(word["ayah"])
+            display = str(word["reference_word"]).strip()
+        except (KeyError, TypeError, ValueError):
+            return []
+        if (
+            not display
+            or not all(math.isfinite(value) for value in (word_start, word_end))
+            or word_end <= word_start
+        ):
+            return []
+        if word_end > start and word_start < end:
+            by_ayah.setdefault(ayah, []).append((word_start, word_end, display))
+    cues = []
+    for words in by_ayah.values():
+        cues.extend(_tracked_cues(words, start, end))
+    return sorted(cues, key=lambda cue: (cue.start, cue.end))
+
+
 def _ass_time(seconds: float) -> str:
     centiseconds = max(0, round(seconds * 100))
     hours, remainder = divmod(centiseconds, 360_000)
@@ -89,7 +186,7 @@ def _escape_ass_text(text: str) -> str:
 
 def _write_ass_captions(
     path: Path,
-    cues: list[CaptionCue],
+    cues: list[CaptionCue | TrackedCaptionCue],
     aspect: str,
     style_name: str,
     position: str,
@@ -114,11 +211,24 @@ def _write_ass_captions(
         "{bold},0,0,0,100,100,0,0,1,{outline_width},{shadow},{alignment},"
         "70,70,{margin},1"
     ).format(font_size=font_size, alignment=alignment, margin=margin, **style)
-    events = [
-        f"Dialogue: 0,{_ass_time(cue.start)},{_ass_time(cue.end)},"
-        f"Caption,,0,0,0,,{_escape_ass_text(cue.text)}"
-        for cue in cues
-    ]
+    events = []
+    for cue in cues:
+        if isinstance(cue, TrackedCaptionCue):
+            if not cue.words or not 0 <= cue.active_index < len(cue.words):
+                raise ValueError("Invalid tracked caption cue")
+            words = []
+            for index, word in enumerate(cue.words):
+                escaped = _escape_ass_text(word)
+                if index == cue.active_index:
+                    escaped = rf"{{\1c&H003DCEFF&\b1}}{escaped}{{\rCaption}}"
+                words.append(escaped)
+            text = " ".join(words)
+        else:
+            text = _escape_ass_text(cue.text)
+        events.append(
+            f"Dialogue: 0,{_ass_time(cue.start)},{_ass_time(cue.end)},"
+            f"Caption,,0,0,0,,{text}"
+        )
     content = "\n".join(
         [
             "[Script Info]",
@@ -192,7 +302,7 @@ def render_clip(
     framing: str = "center",
     *,
     framing_points: list[FramingPoint] | tuple[FramingPoint, ...] | None = None,
-    caption_cues: list[CaptionCue] | None = None,
+    caption_cues: list[CaptionCue | TrackedCaptionCue] | None = None,
     caption_style: str = "garden",
     caption_position: str = "bottom",
 ) -> None:

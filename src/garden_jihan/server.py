@@ -15,7 +15,11 @@ from garden_jihan.jobs import JobManager
 from garden_jihan.media.exporting import ExportManager, ExportPlan, PreparedExportClip
 from garden_jihan.media.framing import auto_framing_runtime_status
 from garden_jihan.media.probe import probe_media
-from garden_jihan.media.render import caption_cues_for_range
+from garden_jihan.media.render import (
+    caption_cues_for_range,
+    quran_word_caption_cues_for_range,
+    word_caption_cues_for_range,
+)
 from garden_jihan.media.sources import inspect_source
 from garden_jihan.models import (
     AnalysisMode,
@@ -309,12 +313,17 @@ def create_app(port: int, settings: Settings | None = None, session_token: str |
             candidate = by_id.get(candidate_id)
             if not candidate:
                 raise HTTPException(status_code=400, detail="Unknown clip candidate")
-            if payload.captions and candidate.mode == AnalysisMode.QURAN:
+            if (
+                payload.captions
+                and candidate.mode == AnalysisMode.QURAN
+                and not payload.word_tracking
+            ):
                 raise HTTPException(
                     status_code=409,
                     detail=(
-                        "Qur'an burn-in captions are disabled until verified acoustic timing "
-                        "supports them. Review the reference-backed passage in the editor."
+                        "Qur'an segment captions are disabled. Choose acoustic word highlighting; "
+                        "it will still fail safely unless the verified reference and local word "
+                        "timestamps pass every confidence check."
                     ),
                 )
             requested.append(candidate)
@@ -336,11 +345,32 @@ def create_app(port: int, settings: Settings | None = None, session_token: str |
             filename = f"clip_{index:02d}_{candidate.id}.mp4"
             caption_cues = None
             if payload.captions:
-                caption_cues = caption_cues_for_range(job.transcript_segments, start, end)
+                if candidate.mode == AnalysisMode.QURAN:
+                    caption_cues = quran_word_caption_cues_for_range(
+                        candidate.quran_match or {},
+                        start,
+                        end,
+                    )
+                elif payload.word_tracking:
+                    caption_cues = word_caption_cues_for_range(
+                        job.transcript_segments,
+                        start,
+                        end,
+                    )
+                else:
+                    caption_cues = caption_cues_for_range(job.transcript_segments, start, end)
                 if not caption_cues:
+                    detail = (
+                        "Qur'an word captions remain disabled because confidence-gated acoustic "
+                        "timing is unavailable for this verified reference match."
+                        if candidate.mode == AnalysisMode.QURAN
+                        else "No local acoustic word timestamps are available for word highlighting"
+                        if payload.word_tracking
+                        else "No timed transcript segments are available for these captions"
+                    )
                     raise HTTPException(
                         status_code=409,
-                        detail="No timed transcript segments are available for these captions",
+                        detail=detail,
                     )
             prepared.append(
                 PreparedExportClip(

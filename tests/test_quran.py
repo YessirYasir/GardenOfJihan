@@ -12,6 +12,7 @@ from garden_jihan.analysis.quran import (
     canonical_tanzil_sha256,
     normalize_arabic,
 )
+from garden_jihan.analysis.transcription import TranscriptSegment, TranscriptWord
 from garden_jihan.config import Settings
 from garden_jihan.jobs import JobManager
 from garden_jihan.models import AnalysisMode, ClipCandidate
@@ -199,6 +200,107 @@ def test_job_candidates_only_receive_verified_locations(trusted_reference):
     assert candidates[1].quran_match["status"] == "uncertain"
     assert "surah" not in candidates[1].quran_match
     assert "ayah" not in candidates[1].quran_match
+
+
+def test_quran_acoustic_word_timing_requires_complete_high_confidence_alignment(
+    trusted_reference,
+):
+    reference, _, _ = trusted_reference
+    manager = JobManager(Settings(app_data=reference.path.parents[1]))
+    candidate = ClipCandidate(
+        id="timed",
+        start=0,
+        end=4,
+        score=92,
+        title="Candidate",
+        reasons=["Test"],
+        transcript="إنا أعطيناك الكوثر",
+        mode=AnalysisMode.QURAN,
+    )
+    segments = [
+        TranscriptSegment(
+            0,
+            4,
+            candidate.transcript,
+            [
+                TranscriptWord(0.2, 1.0, "إنا", 0.91),
+                TranscriptWord(1.1, 2.5, "أعطيناك", 0.88),
+                TranscriptWord(2.6, 3.7, "الكوثر", 0.94),
+            ],
+        )
+    ]
+    manager._attach_quran_matches([candidate], segments)
+
+    match = candidate.quran_match
+    assert match["status"] == "verified"
+    assert match["acoustic_timing_status"] == "supported"
+    assert match["acoustic_timing_confidence"] == 88.0
+    located = [
+        word for word in match["word_alignment"] if word["matched"] and not word["optional"]
+    ]
+    assert [word["query_index"] for word in located] == [0, 1, 2]
+    assert [(word["acoustic_start"], word["acoustic_end"]) for word in located] == [
+        (0.2, 1.0),
+        (1.1, 2.5),
+        (2.6, 3.7),
+    ]
+    assert match["reading"] is None and match["transmission"] is None
+
+    segments[0].words[1] = TranscriptWord(1.1, 2.5, "أعطيناك", 0.2)
+    manager._attach_quran_matches([candidate], segments)
+    assert candidate.quran_match["acoustic_timing_status"] == "uncertain"
+    assert all(
+        "acoustic_start" not in word for word in candidate.quran_match["word_alignment"]
+    )
+
+
+def test_restored_quran_project_rechecks_reference_instead_of_trusting_manifest(
+    trusted_reference,
+):
+    reference, _, _ = trusted_reference
+    settings = Settings(app_data=reference.path.parents[1])
+    manager = JobManager(settings)
+    job = manager.create_upload_job()
+    job.status = "complete"
+    job.progress = 100
+    job.source_path = settings.jobs_dir / job.id / "upload.mp4"
+    job.source_path.write_bytes(b"video")
+    job.transcript_segments = [TranscriptSegment(0, 4, "إنا أعطيناك الكوثر")]
+    job.candidates = [
+        ClipCandidate(
+            id="restored",
+            start=0,
+            end=4,
+            score=90,
+            title="Candidate",
+            reasons=["Test"],
+            transcript="إنا أعطيناك الكوثر",
+            mode=AnalysisMode.QURAN,
+        )
+    ]
+    manager._attach_quran_matches(job.candidates, job.transcript_segments)
+    manager._persist_project(job)
+    manifest_path = settings.jobs_dir / job.id / "project.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["candidates"][0]["quran_match"] = {
+        "status": "verified",
+        "surah": 2,
+        "ayah": 255,
+        "reading": "invented",
+    }
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+
+    restored = JobManager(settings).get(job.id).candidates[0]
+    assert restored.quran_match["status"] == "verified"
+    assert (restored.quran_match["surah"], restored.quran_match["ayah"]) == (108, 1)
+    assert restored.quran_match["reading"] is None
+    assert restored.reasons.count("Verified Quran reference match: 108:1") == 1
+
+    reference.path.unlink()
+    without_reference = JobManager(settings).get(job.id).candidates[0]
+    assert without_reference.quran_match["status"] == "reference_unavailable"
+    assert without_reference.title == "Qur'an passage — reference required"
+    assert all("108:1" not in reason for reason in without_reference.reasons)
 
 
 def test_installed_package_preserves_notice_and_integrity(trusted_reference):

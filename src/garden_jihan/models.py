@@ -76,6 +76,7 @@ class ProjectReview(BaseModel):
     aspect: str = Field(default="9:16", pattern=r"^(9:16|16:9|1:1)$")
     framing: str = Field(default="auto", pattern=r"^(auto|center|left|right|split-stack)$")
     captions: bool = False
+    word_tracking: bool = False
     caption_style: CaptionStyle = CaptionStyle.GARDEN
     caption_position: CaptionPosition = CaptionPosition.BOTTOM
 
@@ -104,6 +105,7 @@ class ExportRequest(BaseModel):
     aspect: str = Field(default="9:16", pattern=r"^(9:16|16:9|1:1)$")
     framing: str = Field(default="auto", pattern=r"^(auto|center|left|right|split-stack)$")
     captions: bool = False
+    word_tracking: bool = False
     caption_style: CaptionStyle = CaptionStyle.GARDEN
     caption_position: CaptionPosition = CaptionPosition.BOTTOM
     boundaries: dict[str, ClipBoundaryOverride] = Field(default_factory=dict)

@@ -23,7 +23,8 @@ function api(path, options={}) {
   return fetch(path, {...options, headers});
 }
 function projectPayload(){
-  return {name:document.getElementById('projectName').value.trim()||'Untitled project',selected_ids:[...selected],boundaries,aspect:document.getElementById('aspect').value,framing:document.getElementById('framing').value,captions:document.getElementById('captions').value==='segments',caption_style:document.getElementById('captionStyle').value,caption_position:document.getElementById('captionPosition').value};
+  const captionMode=document.getElementById('captions').value;
+  return {name:document.getElementById('projectName').value.trim()||'Untitled project',selected_ids:[...selected],boundaries,aspect:document.getElementById('aspect').value,framing:document.getElementById('framing').value,captions:captionMode!=='off',word_tracking:captionMode==='words',caption_style:document.getElementById('captionStyle').value,caption_position:document.getElementById('captionPosition').value};
 }
 async function saveProject(){
   if(!currentJob)return;
@@ -41,7 +42,7 @@ function restoreProject(data,{defaultStrong=false}={}){
   const project=data.project||{};currentJob=data.id;candidates=data.candidates||[];boundaries=project.boundaries||{};exportedFiles=[];syncPublishFiles();
   const validIds=new Set(candidates.map(candidate=>candidate.id));const restored=(project.selected_ids||[]).filter(id=>validIds.has(id));selected=new Set(restored.length||!defaultStrong?restored:candidates.filter(candidate=>candidate.score>=85).map(candidate=>candidate.id));
   document.getElementById('projectName').value=project.name||'Untitled project';
-  document.getElementById('aspect').value=project.aspect||'9:16';document.getElementById('framing').value=project.framing||'auto';document.getElementById('captions').value=project.captions?'segments':'off';document.getElementById('captionStyle').value=project.caption_style||'garden';document.getElementById('captionPosition').value=project.caption_position||'bottom';
+  document.getElementById('aspect').value=project.aspect||'9:16';document.getElementById('framing').value=project.framing||'auto';document.getElementById('captions').value=project.captions?(project.word_tracking?'words':'segments'):'off';document.getElementById('captionStyle').value=project.caption_style||'garden';document.getElementById('captionPosition').value=project.caption_position||'bottom';
   document.getElementById('projectSaveStatus').textContent=data.source_available?'Saved locally':'Source video is missing; export is unavailable';renderRankingStatus(data);renderCandidates();showStep(4);
 }
 function renderProjects(projects){
@@ -189,7 +190,8 @@ function quranMatchMarkup(match){
   const alignment=Array.isArray(match.word_alignment)?match.word_alignment:[];
   const wordTrack=alignment.length?`<div class="quran-alignment"><div class="quran-alignment-head"><b>Word alignment</b><span>${Number(match.matched_words)||0} of ${Number(match.total_words)||alignment.filter(word=>!word.optional).length} locating words</span></div><div class="quran-word-track" lang="ar" dir="rtl" translate="no">${alignment.map(word=>`<span class="${word.optional?'optional':word.matched?'matched':'missed'}" title="${word.optional?'Optional opening formula':word.matched?`${Math.round(Number(word.similarity)||0)}% aligned`:'Not aligned'}">${escapeHtml(word.reference_word||'')}</span>`).join(' ')}</div></div>`:'';
   const boundaryWarning=match.starts_mid_ayah||match.ends_mid_ayah?'<div class="quran-boundary-warning"><b>Review clip boundaries</b><small>The aligned words suggest this candidate may begin or end inside an ayah.</small></div>':'';
-  return `<div class="quran-match high"><div class="quran-match-head"><b>Verified Qur’an ${escapeHtml(label)}</b><span>${escapeHtml(confidenceText)}</span></div>${sacredText}${wordTrack}${boundaryWarning}<small>${escapeHtml(match.source||'Reviewed local reference')} ${match.source_version?`v${escapeHtml(match.source_version)}`:''}</small><small class="qiraat-note">${escapeHtml(match.qiraat_message||'Qira’at is not assessed from text matching.')}</small></div>`;
+  const acousticStatus=match.acoustic_timing_status==='supported'?`<small class="acoustic-note supported">Word captions available • minimum acoustic confidence ${Math.round(Number(match.acoustic_timing_confidence)||0)}%. Timing is model-estimated.</small>`:`<small class="acoustic-note">${escapeHtml(match.acoustic_timing_message||'Acoustic word timing is unavailable; Qur’an word captions stay disabled.')}</small>`;
+  return `<div class="quran-match high"><div class="quran-match-head"><b>Verified Qur’an ${escapeHtml(label)}</b><span>${escapeHtml(confidenceText)}</span></div>${sacredText}${wordTrack}${acousticStatus}${boundaryWarning}<small>${escapeHtml(match.source||'Reviewed local reference')} ${match.source_version?`v${escapeHtml(match.source_version)}`:''}</small><small class="qiraat-note">${escapeHtml(match.qiraat_message||'Qira’at is not assessed from text matching.')}</small></div>`;
 }
 function renderCandidates(){
   const grid=document.getElementById('candidateGrid');grid.innerHTML='';
@@ -210,10 +212,10 @@ function renderCandidates(){
 }
 document.getElementById('selectStrong').addEventListener('click',()=>{selected=new Set(candidates.filter(c=>c.score>=85).map(c=>c.id));renderCandidates();queueProjectSave();});
 function syncCaptionControls(){
-  const enabled=document.getElementById('captions').value==='segments';
+  const captionMode=document.getElementById('captions').value;const enabled=captionMode!=='off';
   document.getElementById('captionStyle').disabled=!enabled;
   document.getElementById('captionPosition').disabled=!enabled;
-  document.getElementById('exportCaptions').textContent=enabled?'Timed':'Off';
+  document.getElementById('exportCaptions').textContent=captionMode==='words'?'Words':enabled?'Timed':'Off';
 }
 function syncExportSummary(){document.getElementById('selectedCount').textContent=selected.size;document.getElementById('exportAspect').textContent=document.getElementById('aspect').value;syncCaptionControls();}
 document.getElementById('captions').addEventListener('change',()=>{syncExportSummary();queueProjectSave();});
@@ -252,14 +254,14 @@ renderClipsButton.addEventListener('click',async()=>{
   if(exportBusy)return;
   const box=document.getElementById('exportMessage');const list=document.getElementById('downloadList');list.innerHTML='';exportedFiles=[];syncPublishFiles();box.classList.remove('hidden','error');
   if(!currentJob||selected.size===0){box.textContent='Choose at least one clip first.';return;}
-  const captions=document.getElementById('captions').value==='segments';
-  if(captions&&candidates.some(candidate=>selected.has(candidate.id)&&candidate.mode==='quran')){box.classList.add('error');box.textContent='Qur’an burn-in captions stay disabled until verified acoustic timing exists. Export without captions and use the reference-backed review panel.';return;}
+  const captionMode=document.getElementById('captions').value;const captions=captionMode!=='off';const wordTracking=captionMode==='words';
+  if(captions&&!wordTracking&&candidates.some(candidate=>selected.has(candidate.id)&&candidate.mode==='quran')){box.classList.add('error');box.textContent='Qur’an segment captions are disabled. Choose acoustic word highlighting; it will render only when the verified reference alignment and local timestamps pass every confidence check.';return;}
   setExportBusy(true);
   box.textContent='Rendering locally with FFmpeg…';
   try{
     const exportProject=currentJob;
     const selectedBoundaries=Object.fromEntries([...selected].filter(id=>boundaries[id]).map(id=>[id,boundaries[id]]));
-    const res=await api(`/api/jobs/${currentJob}/export`,{method:'POST',body:JSON.stringify({candidate_ids:[...selected],aspect:document.getElementById('aspect').value,framing:document.getElementById('framing').value,captions,caption_style:document.getElementById('captionStyle').value,caption_position:document.getElementById('captionPosition').value,boundaries:selectedBoundaries})});const data=await res.json();if(!res.ok)throw new Error(data.detail||'Render failed');
+    const res=await api(`/api/jobs/${currentJob}/export`,{method:'POST',body:JSON.stringify({candidate_ids:[...selected],aspect:document.getElementById('aspect').value,framing:document.getElementById('framing').value,captions,word_tracking:wordTracking,caption_style:document.getElementById('captionStyle').value,caption_position:document.getElementById('captionPosition').value,boundaries:selectedBoundaries})});const data=await res.json();if(!res.ok)throw new Error(data.detail||'Render failed');
     pollExport(data.id,exportProject);
   }catch(err){box.classList.add('error');box.textContent=err.message;setExportBusy(false);}
 });

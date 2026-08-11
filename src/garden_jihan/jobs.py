@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import shutil
 import threading
 import uuid
@@ -10,11 +11,11 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from garden_jihan.analysis.audience import youtube_replay_signal
-from garden_jihan.analysis.quran import QuranReference
+from garden_jihan.analysis.quran import QuranReference, normalize_arabic
 from garden_jihan.analysis.scoring import build_candidates
 from garden_jihan.analysis.semantics import LocalSemanticRanker
 from garden_jihan.analysis.signals import MediaSignals, TimedValue, build_media_signals
-from garden_jihan.analysis.transcription import TranscriptSegment, transcribe
+from garden_jihan.analysis.transcription import TranscriptSegment, TranscriptWord, transcribe
 from garden_jihan.config import Settings
 from garden_jihan.media.downloader import download_remote
 from garden_jihan.media.probe import probe_media
@@ -181,7 +182,7 @@ class JobManager:
                 job.ranking_message = "Base ranking used; local meaning model unavailable"
             if effective_mode == AnalysisMode.QURAN:
                 self._set(job, "running", 90, "Matching the local Quran reference")
-                self._attach_quran_matches(job.candidates)
+                self._attach_quran_matches(job.candidates, job.transcript_segments)
             job.project.selected_ids = [
                 candidate.id for candidate in job.candidates if candidate.score >= 85
             ]
@@ -194,11 +195,110 @@ class JobManager:
         except Exception as exc:
             self._fail(job, exc)
 
-    def _attach_quran_matches(self, candidates: list[ClipCandidate]) -> None:
-        reference = QuranReference(self.settings.quran_reference)
+    @staticmethod
+    def _attach_quran_acoustic_timing(
+        candidate: ClipCandidate,
+        public: dict,
+        transcript_segments: list[TranscriptSegment],
+    ) -> None:
+        public["acoustic_timing_status"] = "unavailable"
+        public["acoustic_timing_message"] = (
+            "Acoustic word timestamps are unavailable; Qur'an word captions remain disabled."
+        )
+        if public.get("status") != "verified":
+            return
+        alignment = public.get("word_alignment")
+        if not isinstance(alignment, list) or not alignment:
+            return
+        locating = [word for word in alignment if word.get("matched") and not word.get("optional")]
+        if (
+            len(locating) < 3
+            or len(locating) != int(public.get("total_words") or 0)
+            or int(public.get("matched_words") or 0) != int(public.get("total_words") or 0)
+        ):
+            public["acoustic_timing_status"] = "uncertain"
+            public["acoustic_timing_message"] = (
+                "The reference word alignment is incomplete; Qur'an word captions remain disabled."
+            )
+            return
+
+        timed_words = [
+            word
+            for segment in transcript_segments
+            if segment.end > candidate.start and segment.start < candidate.end
+            for word in segment.words
+            if word.end > candidate.start and word.start < candidate.end
+        ]
+        if not timed_words:
+            return
+        query_tokens = [
+            normalized
+            for raw in candidate.transcript.split()
+            if (normalized := normalize_arabic(raw))
+        ]
+        timed_tokens = [normalize_arabic(word.text) for word in timed_words]
+        if not query_tokens or timed_tokens != query_tokens:
+            public["acoustic_timing_status"] = "uncertain"
+            public["acoustic_timing_message"] = (
+                "Acoustic words did not map exactly to the matched transcript; Qur'an word "
+                "captions remain disabled."
+            )
+            return
+
+        resolved: list[tuple[dict, TranscriptWord]] = []
+        for word in locating:
+            query_index = word.get("query_index")
+            if not isinstance(query_index, int) or not 0 <= query_index < len(timed_words):
+                return
+            acoustic = timed_words[query_index]
+            if acoustic.probability < 0.55:
+                public["acoustic_timing_status"] = "uncertain"
+                public["acoustic_timing_message"] = (
+                    "At least one acoustic word confidence is below the safety threshold; "
+                    "Qur'an word captions remain disabled."
+                )
+                return
+            resolved.append((word, acoustic))
+        if any(
+            current.start < previous.start or current.end <= current.start
+            for (_word, previous), (_next_word, current) in zip(
+                resolved,
+                resolved[1:],
+                strict=False,
+            )
+        ):
+            public["acoustic_timing_status"] = "uncertain"
+            public["acoustic_timing_message"] = (
+                "Acoustic word timestamps were not monotonic; Qur'an word captions remain disabled."
+            )
+            return
+        for word, acoustic in resolved:
+            word["acoustic_start"] = round(acoustic.start, 3)
+            word["acoustic_end"] = round(acoustic.end, 3)
+            word["acoustic_probability"] = round(acoustic.probability, 3)
+        minimum_probability = min(acoustic.probability for _word, acoustic in resolved)
+        public["acoustic_timing_status"] = "supported"
+        public["acoustic_timing_confidence"] = round(minimum_probability * 100, 1)
+        public["acoustic_timing_message"] = (
+            "Reference words map one-to-one to confidence-gated local acoustic timestamps. "
+            "Timing is model-estimated, not human-verified; Qira'at is not assessed."
+        )
+
+    def _attach_quran_matches(
+        self,
+        candidates: list[ClipCandidate],
+        transcript_segments: list[TranscriptSegment] | None = None,
+        reference: QuranReference | None = None,
+    ) -> None:
+        reference = reference or QuranReference(self.settings.quran_reference)
         for candidate in candidates:
             decision = reference.identify(candidate.transcript)
             public = decision.public(reference.source)
+            self._attach_quran_acoustic_timing(
+                candidate,
+                public,
+                transcript_segments or [],
+            )
             candidate.quran_match = public
             if decision.status == "verified" and decision.match:
                 best = decision.match
@@ -209,10 +309,37 @@ class JobManager:
                 reasons = [f"Verified Quran reference match: {ayah_label}"]
                 if best.starts_mid_ayah or best.ends_mid_ayah:
                     reasons.append("Review timing: this candidate may cut through an ayah")
-                candidate.reasons = [*reasons, *candidate.reasons][:6]
+                existing = [
+                    reason
+                    for reason in candidate.reasons
+                    if not reason.startswith("Verified Quran reference match:")
+                    and reason != "Review timing: this candidate may cut through an ayah"
+                ]
+                candidate.reasons = [*reasons, *existing][:6]
             elif decision.status in {"possible", "uncertain"}:
                 candidate.title = "Qur'an passage — review required"
-                candidate.reasons = [decision.message, *candidate.reasons][:6]
+                candidate.reasons = [
+                    decision.message,
+                    *(
+                        reason
+                        for reason in candidate.reasons
+                        if reason != decision.message
+                        and not reason.startswith("Verified Quran reference match:")
+                        and reason != "Review timing: this candidate may cut through an ayah"
+                    ),
+                ][:6]
+            else:
+                candidate.title = "Qur'an passage — reference required"
+                candidate.reasons = [
+                    decision.message,
+                    *(
+                        reason
+                        for reason in candidate.reasons
+                        if reason != decision.message
+                        and not reason.startswith("Verified Quran reference match:")
+                        and reason != "Review timing: this candidate may cut through an ayah"
+                    ),
+                ][:6]
 
     def _fail(self, job: JobState, exc: Exception):
         with self._lock:
@@ -275,7 +402,20 @@ class JobManager:
             "project": job.project.model_dump(mode="json"),
             "candidates": [candidate.model_dump(mode="json") for candidate in job.candidates],
             "transcript_segments": [
-                {"start": item.start, "end": item.end, "text": item.text}
+                {
+                    "start": item.start,
+                    "end": item.end,
+                    "text": item.text,
+                    "words": [
+                        {
+                            "start": word.start,
+                            "end": word.end,
+                            "text": word.text,
+                            "probability": word.probability,
+                        }
+                        for word in item.words
+                    ],
+                }
                 for item in job.transcript_segments
             ],
             "media_signals": {
@@ -321,6 +461,7 @@ class JobManager:
         return values
 
     def _load_projects(self) -> None:
+        restored_quran_reference = None
         for manifest_path in self.settings.jobs_dir.glob("*/project.json"):
             try:
                 if manifest_path.stat().st_size > 64 * 1024 * 1024:
@@ -337,11 +478,33 @@ class JobManager:
                         source_path = candidate_source
                 transcript = []
                 for item in raw.get("transcript_segments", [])[:100_000]:
+                    segment_start = float(item["start"])
+                    segment_end = float(item["end"])
+                    words = []
+                    for word in item.get("words", [])[:2_000]:
+                        word_start = float(word["start"])
+                        word_end = float(word["end"])
+                        probability = float(word["probability"])
+                        text = str(word["text"]).strip()
+                        if (
+                            text
+                            and all(
+                                math.isfinite(value)
+                                for value in (word_start, word_end, probability)
+                            )
+                            and max(0.0, segment_start - 0.25) <= word_start < word_end
+                            and word_end <= segment_end + 0.25
+                            and 0.0 <= probability <= 1.0
+                        ):
+                            words.append(
+                                TranscriptWord(word_start, word_end, text, probability)
+                            )
                     transcript.append(
                         TranscriptSegment(
-                            start=float(item["start"]),
-                            end=float(item["end"]),
+                            start=segment_start,
+                            end=segment_end,
                             text=str(item["text"]),
+                            words=words,
                         )
                     )
                 signal_data = raw.get("media_signals", {})
@@ -370,6 +533,14 @@ class JobManager:
                     created_at=self._parse_time(raw.get("created_at")),
                     updated_at=self._parse_time(raw.get("updated_at")),
                 )
+                if any(candidate.mode == AnalysisMode.QURAN for candidate in job.candidates):
+                    if restored_quran_reference is None:
+                        restored_quran_reference = QuranReference(self.settings.quran_reference)
+                    self._attach_quran_matches(
+                        job.candidates,
+                        job.transcript_segments,
+                        restored_quran_reference,
+                    )
             except (AttributeError, OSError, TypeError, ValueError, KeyError, json.JSONDecodeError):
                 continue
             self._jobs[job.id] = job

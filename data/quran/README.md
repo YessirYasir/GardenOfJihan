@@ -39,6 +39,7 @@ Qira'at recognition is intentionally separate from Surah/Ayah text recognition. 
 - A Surah/Ayah label appears only when the reference is valid, textual confidence and coverage clear strict thresholds, and competing locations are not too close.
 - Borderline, partial, or ambiguous matches require review and do not reveal a guessed location.
 - Repeated passages fail safely when textual evidence cannot distinguish their locations.
-- Word alignment is textual. It does not claim word-level audio timestamps.
+- Reference word alignment remains textual. Separately, optional caption timing is attached only when every locating reference word maps one-to-one to monotonic local speech-model timestamps and all per-word probabilities clear the conservative threshold. The timing is labeled model-estimated, not human-verified.
+- Acoustic word timing is not evidence of Qira'at, reader identity, or transmission.
 - Missing or invalid reference data is reported explicitly.
 - No reading or transmission is inferred from the offline text match.
