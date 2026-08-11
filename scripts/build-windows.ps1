@@ -19,6 +19,7 @@ pyinstaller `
   --noconfirm `
   --clean `
   --onedir `
+  --noconsole `
   --name GardenOfJihan `
   --collect-all garden_jihan `
   --collect-all faster_whisper `
