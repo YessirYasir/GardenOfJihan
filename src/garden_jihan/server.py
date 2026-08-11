@@ -11,6 +11,11 @@ from fastapi.staticfiles import StaticFiles
 from garden_jihan.analysis.quran import QuranReference
 from garden_jihan.config import Settings
 from garden_jihan.jobs import JobManager
+from garden_jihan.media.framing import (
+    FramingDecision,
+    analyze_auto_framing,
+    auto_framing_runtime_status,
+)
 from garden_jihan.media.probe import probe_media
 from garden_jihan.media.render import caption_cues_for_range, render_clip
 from garden_jihan.media.sources import inspect_source
@@ -57,7 +62,13 @@ def create_app(port: int, settings: Settings | None = None, session_token: str |
 
     @app.get("/api/health")
     async def health():
-        return {"ok": True, "local": True, "version": "0.1.0"}
+        auto_framing_available, _message = auto_framing_runtime_status()
+        return {
+            "ok": True,
+            "local": True,
+            "version": "0.1.0",
+            "auto_framing_available": auto_framing_available,
+        }
 
     @app.get("/api/quran/reference")
     async def quran_reference_status():
@@ -217,6 +228,30 @@ def create_app(port: int, settings: Settings | None = None, session_token: str |
                         status_code=409,
                         detail="No timed transcript segments are available for these captions",
                     )
+            render_framing = payload.framing
+            framing_points = None
+            if payload.framing == "auto":
+                render_framing = "center"
+                if payload.aspect != "9:16":
+                    framing_decision = FramingDecision(
+                        applied="center",
+                        confidence=0.0,
+                        message="Auto framing applies only to vertical 9:16 exports.",
+                    )
+                else:
+                    framing_decision = analyze_auto_framing(
+                        job.source_path,
+                        start,
+                        end,
+                        job.media_signals,
+                    )
+                    framing_points = framing_decision.points
+            else:
+                framing_decision = FramingDecision(
+                    applied=payload.framing,
+                    confidence=1.0,
+                    message=f"Manual {payload.framing} framing applied.",
+                )
             try:
                 render_clip(
                     job.source_path,
@@ -224,14 +259,21 @@ def create_app(port: int, settings: Settings | None = None, session_token: str |
                     start,
                     end,
                     payload.aspect,
-                    payload.framing,
+                    render_framing,
+                    framing_points=framing_points,
                     caption_cues=caption_cues,
                     caption_style=payload.caption_style,
                     caption_position=payload.caption_position,
                 )
             except Exception as exc:
                 raise HTTPException(status_code=500, detail=f"Render failed: {exc}") from exc
-            files.append({"name": filename, "url": f"/api/jobs/{job.id}/output/{filename}"})
+            files.append(
+                {
+                    "name": filename,
+                    "url": f"/api/jobs/{job.id}/output/{filename}",
+                    "framing": framing_decision.public(payload.framing),
+                }
+            )
         return {"files": files}
 
     @app.get("/api/jobs/{job_id}/output/{filename}")

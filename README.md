@@ -21,7 +21,7 @@ The project is designed around four principles:
 - **Multilingual by design:** English, Arabic, and Somali are first-class modes.
 - **Faithful Qur'an workflows:** Qur'anic recognition must use verified reference data and fail safely when confidence is insufficient.
 
-> **Status: internal/public-beta candidate.** The Windows application, local security boundary, source validation, Intelligence V2 ranking, manual timing, framing controls, styled segment-timed captions, export pipeline, bundled media tools, CI/security scans, clean-Windows executable smoke tests, and Microsoft Defender release scans are operational. Checksum-pinned Tanzil installation and fail-safe Surah/Ayah matching are implemented; acoustic Qira'at recognition and Qur'an word timing are not. Trusted Windows distribution, a representative Somali gold corpus, automatic speaker tracking, and direct platform publishing remain active development areas.
+> **Status: internal/public-beta candidate.** The Windows application, local security boundary, source validation, Intelligence V2 ranking, manual timing, confidence-gated local audio-visual framing, manual framing controls, styled segment-timed captions, export pipeline, bundled media tools, CI/security scans, clean-Windows executable smoke tests, and Microsoft Defender release scans are operational. Checksum-pinned Tanzil installation and fail-safe Surah/Ayah matching are implemented; acoustic Qira'at recognition and Qur'an word timing are not. Trusted Windows distribution, a representative Somali gold corpus, robust speaker identity/diarization, and direct platform publishing remain active development areas.
 
 ## Current workflow
 
@@ -30,7 +30,7 @@ The project is designed around four principles:
 3. Analyze finished videos / finished YouTube livestreams up to two hours.
 4. Rank non-overlapping moments using local multilingual embeddings, transcript structure, audio energy, visual activity, and YouTube replay data when available.
 5. Preview clips, adjust start/end timing, and select the strongest moments.
-6. Choose 9:16, 16:9, or 1:1 output plus manual vertical framing options.
+6. Choose 9:16, 16:9, or 1:1 output. Vertical clips can use confidence-gated local face/activity framing or a manual fallback.
 7. Optionally burn in locally timed transcript captions using Garden, high-contrast, or minimal styling.
 8. Render clean MP4 clips locally and save them.
 

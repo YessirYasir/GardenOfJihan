@@ -79,7 +79,7 @@ class ClipBoundaryOverride(BaseModel):
 class ExportRequest(BaseModel):
     candidate_ids: list[str] = Field(min_length=1, max_length=30)
     aspect: str = Field(default="9:16", pattern=r"^(9:16|16:9|1:1)$")
-    framing: str = Field(default="center", pattern=r"^(center|left|right|split-stack)$")
+    framing: str = Field(default="center", pattern=r"^(auto|center|left|right|split-stack)$")
     captions: bool = False
     caption_style: CaptionStyle = CaptionStyle.GARDEN
     caption_position: CaptionPosition = CaptionPosition.BOTTOM

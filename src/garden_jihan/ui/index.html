@@ -87,7 +87,7 @@
       <div class="screen" data-screen="2">
         <div class="panel-title"><span>3.</span><div><h2>Clip Recipe</h2><p>Use Output Settings on the right to control aspect ratio, clip count, and timing.</p></div></div>
         <div class="format-showcase"><article><div class="ratio vertical"></div><b>Vertical Shorts</b><small>9:16</small></article><article><div class="ratio landscape"></div><b>Landscape Clips</b><small>16:9</small></article><article><div class="ratio square"></div><b>Square Clips</b><small>1:1</small></article></div>
-        <div class="future-tools"><div><span>✦</span><b>Context protection</b><small>Adjust starts and endings so the idea still makes sense.</small></div><div><span>✦</span><b>Framing control</b><small>Center, left, right, or split-stack vertical exports.</small></div></div>
+        <div class="future-tools"><div><span>✦</span><b>Context protection</b><small>Adjust starts and endings so the idea still makes sense.</small></div><div><span>✦</span><b>Framing control</b><small>Confidence-gated local auto framing plus manual center, side, and split-stack choices.</small></div></div>
       </div>
 
       <div class="screen" data-screen="3">
@@ -112,7 +112,7 @@
       <div class="screen" data-screen="5">
         <div class="panel-title"><span>6.</span><div><h2>Export Garden</h2><p>Render your selected moments locally with no watermark or credit meter.</p></div></div>
         <div class="export-summary"><div><small>Selected</small><strong id="selectedCount">0</strong></div><div><small>Format</small><strong id="exportAspect">9:16</strong></div><div><small>Captions</small><strong id="exportCaptions">Off</strong></div><div><small>Watermark</small><strong>None</strong></div></div>
-        <label class="export-control">Vertical framing<select id="framing"><option value="center" selected>Center crop</option><option value="left">Keep left side</option><option value="right">Keep right side</option><option value="split-stack">Split &amp; stack both sides</option></select><small>Framing changes vertical 9:16 exports. Other formats keep their normal crop.</small></label>
+        <label class="export-control">Vertical framing<select id="framing"><option value="auto" selected>Auto speaking face (beta)</option><option value="center">Center crop</option><option value="left">Keep left side</option><option value="right">Keep right side</option><option value="split-stack">Split &amp; stack both sides</option></select><small>Auto uses local face position, mouth motion, and audio activity only when confident. It returns to center when uncertain and never identifies a person. Manual choices remain available.</small></label>
         <div class="caption-controls">
           <label>Transcript captions<select id="captions"><option value="off" selected>Off</option><option value="segments">Burn in timed segments</option></select></label>
           <label>Caption style<select id="captionStyle"><option value="garden" selected>Garden cream</option><option value="high-contrast">High contrast</option><option value="minimal">Minimal</option></select></label>

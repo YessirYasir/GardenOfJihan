@@ -12,7 +12,7 @@ from garden_jihan.analysis.audience import youtube_replay_signal
 from garden_jihan.analysis.quran import QuranReference
 from garden_jihan.analysis.scoring import build_candidates
 from garden_jihan.analysis.semantics import LocalSemanticRanker
-from garden_jihan.analysis.signals import build_media_signals
+from garden_jihan.analysis.signals import MediaSignals, build_media_signals
 from garden_jihan.analysis.transcription import TranscriptSegment, transcribe
 from garden_jihan.config import Settings
 from garden_jihan.media.downloader import download_remote
@@ -32,6 +32,7 @@ class JobState:
     ranking_message: str = "Base ranking"
     candidates: list[ClipCandidate] = field(default_factory=list)
     transcript_segments: list[TranscriptSegment] = field(default_factory=list)
+    media_signals: MediaSignals | None = None
     source_path: Path | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
@@ -143,6 +144,8 @@ class JobManager:
             signals = build_media_signals(path)
             if replay:
                 signals.replay = replay
+            with self._lock:
+                job.media_signals = signals
             ranking_message = (
                 "Ranking complete recitation segments"
                 if effective_mode == AnalysisMode.QURAN

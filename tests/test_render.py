@@ -4,6 +4,7 @@ import pytest
 
 from garden_jihan.analysis.transcription import TranscriptSegment
 from garden_jihan.media import render
+from garden_jihan.media.framing import FramingPoint
 from garden_jihan.media.render import CaptionCue, caption_cues_for_range, render_clip
 
 
@@ -91,3 +92,28 @@ def test_render_rejects_unknown_caption_style(tmp_path):
             2.0,
             caption_style="untrusted",
         )
+
+
+def test_render_interpolates_confident_framing_points(tmp_path, monkeypatch):
+    captured = {}
+    monkeypatch.setattr(render, "ffmpeg_path", lambda: "ffmpeg")
+    monkeypatch.setattr(
+        render.subprocess,
+        "run",
+        lambda command, **_kwargs: captured.setdefault("command", command),
+    )
+
+    render_clip(
+        Path("source.mp4"),
+        tmp_path / "clip.mp4",
+        10.0,
+        14.0,
+        framing="center",
+        framing_points=[FramingPoint(0.0, 0.2), FramingPoint(3.0, 0.8)],
+    )
+
+    command = captured["command"]
+    video_filter = command[command.index("-vf") + 1]
+    assert "crop=1080:1920:max(0\\,min(iw-ow\\," in video_filter
+    assert "if(lt(t\\,3.000)" in video_filter
+    assert "(0.60000)*(t-0.000)/3.000" in video_filter

@@ -28,4 +28,6 @@ Media pipeline
     └── FFmpeg render/export
 ```
 
-Future modules include speaker-aware framing, scene analysis, audio-energy scoring, replay heatmap signals, word-tracked overlays, verified Qira'at diagnostics, OAuth publishing, and resumable cached projects.
+Current automatic vertical framing samples faces locally with OpenCV and combines face position, mouth motion, and audio activity. A stable single face can be followed as a subject; multi-face tracking is applied only when audio-visual speech activity is separated confidently. Ambiguous evidence fails safely to the existing center crop, and manual center/left/right/split-stack framing remains available. This is not speaker identity or diarization.
+
+Future modules include robust speaker identity/diarization, word-tracked overlays, verified Qira'at diagnostics, OAuth publishing, and resumable cached projects.

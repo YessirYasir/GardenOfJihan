@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from garden_jihan.analysis.transcription import TranscriptSegment
+from garden_jihan.media.framing import FramingPoint
 from garden_jihan.runtime import ffmpeg_path
 
 
@@ -150,6 +151,38 @@ def _subtitle_filter(path: Path) -> str:
     return f"subtitles=filename='{escaped}'"
 
 
+def _framing_center_expression(points: list[FramingPoint] | tuple[FramingPoint, ...]) -> str:
+    """Build a bounded, linearly interpolated clip-relative FFmpeg expression."""
+    valid = sorted(
+        (
+            FramingPoint(max(0.0, point.time), min(1.0, max(0.0, point.center_x)))
+            for point in points
+            if point.time == point.time and point.center_x == point.center_x
+        ),
+        key=lambda point: point.time,
+    )
+    if not valid:
+        return "0.5"
+    unique: list[FramingPoint] = []
+    for point in valid:
+        if unique and abs(unique[-1].time - point.time) < 0.001:
+            unique[-1] = point
+        else:
+            unique.append(point)
+    expression = f"{unique[-1].center_x:.5f}"
+    for left, right in reversed(list(zip(unique, unique[1:], strict=False))):
+        duration = right.time - left.time
+        if duration <= 0:
+            continue
+        interpolated = (
+            f"{left.center_x:.5f}+"
+            f"({right.center_x - left.center_x:.5f})*"
+            f"(t-{left.time:.3f})/{duration:.3f}"
+        )
+        expression = f"if(lt(t\\,{right.time:.3f})\\,{interpolated}\\,{expression})"
+    return expression
+
+
 def render_clip(
     source: Path,
     output: Path,
@@ -158,6 +191,7 @@ def render_clip(
     aspect: str = "9:16",
     framing: str = "center",
     *,
+    framing_points: list[FramingPoint] | tuple[FramingPoint, ...] | None = None,
     caption_cues: list[CaptionCue] | None = None,
     caption_style: str = "garden",
     caption_position: str = "bottom",
@@ -213,10 +247,14 @@ def render_clip(
     else:
         video_filter = None
         if aspect == "9:16":
-            x = {"left": "0", "center": "(iw-ow)/2", "right": "iw-ow"}.get(
-                framing,
-                "(iw-ow)/2",
-            )
+            if framing_points:
+                center = _framing_center_expression(framing_points)
+                x = f"max(0\\,min(iw-ow\\,({center})*iw-ow/2))"
+            else:
+                x = {"left": "0", "center": "(iw-ow)/2", "right": "iw-ow"}.get(
+                    framing,
+                    "(iw-ow)/2",
+                )
             video_filter = (
                 "scale=1080:1920:force_original_aspect_ratio=increase,"
                 f"crop=1080:1920:{x}:0"

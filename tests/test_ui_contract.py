@@ -71,3 +71,16 @@ def test_ranking_status_reports_embeddings_fallback_and_quran_safe_path():
     assert "Qur’an-safe ranking" in app_js
     assert "does not infer Surah, Ayah, or Qira’at" in app_js
     assert "semantic_coherence:'Topic coherence'" in app_js
+
+
+def test_auto_framing_is_honest_and_keeps_manual_fallbacks():
+    html = _ui_text("index.html")
+    app_js = _ui_text("app.js")
+
+    assert '<option value="auto" selected>Auto speaking face (beta)</option>' in html
+    assert all(
+        f'<option value="{value}">' in html
+        for value in ("center", "left", "right", "split-stack")
+    )
+    assert "never identifies a person" in html
+    assert "file.framing?.message" in app_js

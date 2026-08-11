@@ -26,6 +26,7 @@ pyinstaller `
   --collect-all garden_jihan `
   --collect-all faster_whisper `
   --collect-all fastembed `
+  --collect-all cv2 `
   --collect-all onnxruntime `
   --collect-all ctranslate2 `
   --collect-all tokenizers `

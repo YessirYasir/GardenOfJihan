@@ -4,6 +4,7 @@ from garden_jihan.analysis import quran as quran_module
 from garden_jihan.analysis.quran import AYAH_COUNTS, canonical_tanzil_sha256
 from garden_jihan.analysis.transcription import TranscriptSegment
 from garden_jihan.config import Settings
+from garden_jihan.media.framing import FramingDecision, FramingPoint
 from garden_jihan.models import AnalysisMode, ClipCandidate
 from garden_jihan.server import create_app
 
@@ -14,6 +15,7 @@ def test_health_and_security_headers(tmp_path):
     with TestClient(app, base_url="http://127.0.0.1:8765") as client:
         response = client.get("/api/health")
         assert response.status_code == 200
+        assert isinstance(response.json()["auto_framing_available"], bool)
         assert response.headers["x-frame-options"] == "DENY"
         assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
 
@@ -184,3 +186,70 @@ def test_quran_export_captions_fail_closed_without_acoustic_timing(tmp_path, mon
 
     assert response.status_code == 409
     assert "verified acoustic timing" in response.json()["detail"]
+
+
+def test_auto_framing_passes_confident_points_and_reports_evidence(tmp_path, monkeypatch):
+    settings = Settings(app_data=tmp_path)
+    app = create_app(port=8765, settings=settings, session_token="test-token")
+    job = _complete_export_job(app, tmp_path)
+    captured = {}
+    monkeypatch.setattr("garden_jihan.server.probe_media", lambda *_args: {"duration": 30.0})
+    monkeypatch.setattr(
+        "garden_jihan.server.analyze_auto_framing",
+        lambda *_args: FramingDecision(
+            applied="auto-speaking-face",
+            confidence=0.86,
+            message="Confident local audio-visual evidence.",
+            points=(FramingPoint(0.0, 0.25), FramingPoint(6.0, 0.75)),
+        ),
+    )
+    monkeypatch.setattr(
+        "garden_jihan.server.render_clip",
+        lambda *args, **kwargs: captured.update(args=args, kwargs=kwargs),
+    )
+    headers = {"origin": "http://127.0.0.1:8765", "x-goj-token": "test-token"}
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        response = client.post(
+            f"/api/jobs/{job.id}/export",
+            headers=headers,
+            json={"candidate_ids": ["candidate123"], "framing": "auto"},
+        )
+
+    assert response.status_code == 200
+    assert captured["args"][5] == "center"
+    assert captured["kwargs"]["framing_points"] == (
+        FramingPoint(0.0, 0.25),
+        FramingPoint(6.0, 0.75),
+    )
+    assert response.json()["files"][0]["framing"] == {
+        "requested": "auto",
+        "applied": "auto-speaking-face",
+        "confidence": 0.86,
+        "message": "Confident local audio-visual evidence.",
+    }
+
+
+def test_auto_framing_non_vertical_export_reports_center_fallback(tmp_path, monkeypatch):
+    settings = Settings(app_data=tmp_path)
+    app = create_app(port=8765, settings=settings, session_token="test-token")
+    job = _complete_export_job(app, tmp_path)
+    monkeypatch.setattr("garden_jihan.server.probe_media", lambda *_args: {"duration": 30.0})
+    monkeypatch.setattr("garden_jihan.server.render_clip", lambda *_args, **_kwargs: None)
+    headers = {"origin": "http://127.0.0.1:8765", "x-goj-token": "test-token"}
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        response = client.post(
+            f"/api/jobs/{job.id}/export",
+            headers=headers,
+            json={
+                "candidate_ids": ["candidate123"],
+                "framing": "auto",
+                "aspect": "1:1",
+            },
+        )
+
+    framing = response.json()["files"][0]["framing"]
+    assert framing["applied"] == "center"
+    assert framing["confidence"] == 0.0
+    assert "only to vertical 9:16" in framing["message"]

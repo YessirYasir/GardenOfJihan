@@ -7,6 +7,7 @@ on:
       - 'src/**'
       - 'scripts/build-windows.ps1'
       - 'scripts/smoke-captions.ps1'
+      - 'scripts/smoke-auto-framing.ps1'
       - 'scripts/assert-signed-release.ps1'
       - 'scripts/version-info.txt'
       - 'pyproject.toml'
@@ -49,6 +50,12 @@ jobs:
           $ffmpeg = if (Test-Path "dist\GardenOfJihan\_internal\bin\ffmpeg.exe") { "dist\GardenOfJihan\_internal\bin\ffmpeg.exe" } else { "dist\GardenOfJihan\bin\ffmpeg.exe" }
           .\scripts\smoke-captions.ps1 -FfmpegPath $ffmpeg
 
+      - name: Smoke-test dynamic vertical framing
+        shell: pwsh
+        run: |
+          $ffmpeg = if (Test-Path "dist\GardenOfJihan\_internal\bin\ffmpeg.exe") { "dist\GardenOfJihan\_internal\bin\ffmpeg.exe" } else { "dist\GardenOfJihan\bin\ffmpeg.exe" }
+          .\scripts\smoke-auto-framing.ps1 -FfmpegPath $ffmpeg
+
       - name: Smoke-test packaged executable and UI
         shell: pwsh
         run: |
@@ -62,7 +69,7 @@ jobs:
               if ($process.HasExited) { throw "GardenOfJihan.exe exited before becoming healthy" }
               try {
                 $health = Invoke-RestMethod -Uri "http://127.0.0.1:8765/api/health" -TimeoutSec 3
-                if ($health.ok -eq $true -and $health.local -eq $true) {
+                if ($health.ok -eq $true -and $health.local -eq $true -and $health.auto_framing_available -eq $true) {
                   $healthy = $true
                   break
                 }
