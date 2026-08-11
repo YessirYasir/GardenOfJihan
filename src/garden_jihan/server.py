@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 
 from garden_jihan.config import Settings
 from garden_jihan.jobs import JobManager
+from garden_jihan.media.probe import probe_media
 from garden_jihan.media.render import render_clip
 from garden_jihan.media.sources import inspect_source
 from garden_jihan.models import AnalyzeRequest, ExportRequest, SourceInspectRequest
@@ -135,11 +136,22 @@ def create_app(port: int, settings: Settings | None = None, session_token: str |
 
         output_dir = safe_job_path(settings.jobs_dir, job.id) / "output"
         files = []
+        media_info = probe_media(job.source_path, settings.max_video_seconds)
+        source_duration = float(media_info["duration"])
         for index, candidate in enumerate(requested, start=1):
+            boundary = payload.boundaries.get(candidate.id)
+            start = boundary.start if boundary else candidate.start
+            end = boundary.end if boundary else candidate.end
+            if end <= start:
+                raise HTTPException(status_code=400, detail="Clip end must be after clip start")
+            if end - start > 180:
+                raise HTTPException(status_code=400, detail="Adjusted clip exceeds three minutes")
+            if end > source_duration + 0.05:
+                raise HTTPException(status_code=400, detail="Adjusted clip exceeds source duration")
             filename = f"clip_{index:02d}_{candidate.id}.mp4"
             destination = output_dir / filename
             try:
-                render_clip(job.source_path, destination, candidate.start, candidate.end, payload.aspect)
+                render_clip(job.source_path, destination, start, end, payload.aspect)
             except Exception as exc:
                 raise HTTPException(status_code=500, detail=f"Render failed: {exc}") from exc
             files.append({"name": filename, "url": f"/api/jobs/{job.id}/output/{filename}"})
