@@ -88,7 +88,7 @@
         </div>
         <div class="future-tools">
           <div><span>✦</span><b>Multi-signal ranking</b><small>Speech meaning, audio energy, scene changes, and replay data are blended locally.</small></div>
-          <div><span>✦</span><b>Smart framing</b><small>Speaker-aware vertical framing is the next video module.</small></div>
+          <div><span>✦</span><b>Framing control</b><small>Center, left, right, or stack two sides for podcast-style vertical clips.</small></div>
         </div>
       </div>
 
@@ -112,7 +112,7 @@
 
       <div class="screen" data-screen="4">
         <p class="eyebrow">Review</p>
-        <div class="section-head"><div><h2>Your strongest moments</h2><p class="lede">Keep, skip, or preview against the source video.</p></div><button id="selectStrong" class="secondary">Keep score 85+</button></div>
+        <div class="section-head"><div><h2>Your strongest moments</h2><p class="lede">Keep, preview, and adjust timing before export.</p></div><button id="selectStrong" class="secondary">Keep score 85+</button></div>
         <video id="sourcePreview" controls preload="metadata"></video>
         <div id="candidateGrid" class="candidate-grid"></div>
         <div id="emptyCandidates" class="garden-note hidden">No candidates are available yet.</div>
@@ -123,6 +123,15 @@
         <h2>Render your selected clips</h2>
         <p class="lede">Clean MP4 output, no watermark, no credit meter.</p>
         <div class="export-summary"><div><small>Selected</small><strong id="selectedCount">0</strong></div><div><small>Format</small><strong id="exportAspect">9:16</strong></div><div><small>Watermark</small><strong>None</strong></div></div>
+        <label class="export-control">Vertical framing
+          <select id="framing">
+            <option value="center" selected>Center crop</option>
+            <option value="left">Keep left side</option>
+            <option value="right">Keep right side</option>
+            <option value="split-stack">Split &amp; stack both sides</option>
+          </select>
+          <small>Framing changes vertical 9:16 exports. Other formats keep their normal crop.</small>
+        </label>
         <button id="renderClips" class="primary large">Render selected clips</button>
         <div id="exportMessage" class="notice hidden" aria-live="polite"></div>
         <div id="downloadList" class="downloads"></div>
