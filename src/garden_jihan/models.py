@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl, model_validator
 
 
 class AnalysisMode(StrEnum):
@@ -36,6 +36,7 @@ class ClipCandidate(BaseModel):
     transcript: str
     mode: AnalysisMode
     quran_match: dict | None = None
+    score_breakdown: dict[str, float] = Field(default_factory=dict)
 
 
 class JobPublic(BaseModel):
@@ -44,9 +45,24 @@ class JobPublic(BaseModel):
     progress: int = Field(ge=0, le=100)
     message: str
     error: str | None = None
-    candidates: list[ClipCandidate] = []
+    candidates: list[ClipCandidate] = Field(default_factory=list)
+
+
+class ClipBoundaryOverride(BaseModel):
+    start: float = Field(ge=0)
+    end: float = Field(gt=0)
+
+    @model_validator(mode="after")
+    def validate_order(self):
+        if self.end <= self.start:
+            raise ValueError("Clip end must be after start")
+        if self.end - self.start > 180:
+            raise ValueError("Adjusted clip exceeds three minutes")
+        return self
 
 
 class ExportRequest(BaseModel):
     candidate_ids: list[str] = Field(min_length=1, max_length=30)
     aspect: str = Field(default="9:16", pattern=r"^(9:16|16:9|1:1)$")
+    framing: str = Field(default="center", pattern=r"^(center|left|right|split-stack)$")
+    boundaries: dict[str, ClipBoundaryOverride] = Field(default_factory=dict)

@@ -8,7 +8,9 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from garden_jihan.analysis.audience import youtube_replay_signal
 from garden_jihan.analysis.scoring import build_candidates
+from garden_jihan.analysis.signals import build_media_signals
 from garden_jihan.analysis.transcription import transcribe
 from garden_jihan.config import Settings
 from garden_jihan.media.downloader import download_remote
@@ -35,7 +37,10 @@ class JobManager:
         self.settings.jobs_dir.mkdir(parents=True, exist_ok=True)
         self._jobs: dict[str, JobState] = {}
         self._lock = threading.Lock()
-        self._pool = ThreadPoolExecutor(max_workers=settings.max_concurrent_jobs, thread_name_prefix="goj")
+        self._pool = ThreadPoolExecutor(
+            max_workers=settings.max_concurrent_jobs,
+            thread_name_prefix="goj",
+        )
 
     def create_upload_job(self) -> JobState:
         job = JobState(id=uuid.uuid4().hex)
@@ -44,12 +49,27 @@ class JobManager:
         safe_job_path(self.settings.jobs_dir, job.id).mkdir(parents=True, exist_ok=False)
         return job
 
-    def submit_url(self, url: str, mode: AnalysisMode, min_s: int, max_s: int, max_clips: int) -> JobState:
+    def submit_url(
+        self,
+        url: str,
+        mode: AnalysisMode,
+        min_s: int,
+        max_s: int,
+        max_clips: int,
+    ) -> JobState:
         job = self.create_upload_job()
         self._pool.submit(self._run_url, job.id, url, mode, min_s, max_s, max_clips)
         return job
 
-    def submit_uploaded(self, job_id: str, path: Path, mode: AnalysisMode, min_s: int, max_s: int, max_clips: int) -> JobState:
+    def submit_uploaded(
+        self,
+        job_id: str,
+        path: Path,
+        mode: AnalysisMode,
+        min_s: int,
+        max_s: int,
+        max_clips: int,
+    ) -> JobState:
         job = self.get(job_id)
         job.source_path = path
         self._pool.submit(self._analyze, job.id, path, mode, min_s, max_s, max_clips)
@@ -59,30 +79,71 @@ class JobManager:
         with self._lock:
             job.status, job.progress, job.message = status, progress, message
 
-    def _run_url(self, job_id: str, url: str, mode: AnalysisMode, min_s: int, max_s: int, max_clips: int):
+    def _run_url(
+        self,
+        job_id: str,
+        url: str,
+        mode: AnalysisMode,
+        min_s: int,
+        max_s: int,
+        max_clips: int,
+    ):
         job = self.get(job_id)
         try:
             self._set(job, "running", 8, "Safely acquiring source")
             folder = safe_job_path(self.settings.jobs_dir, job.id)
             path = download_remote(url, folder / "source")
             job.source_path = path
-            self._analyze(job.id, path, mode, min_s, max_s, max_clips)
+            replay = youtube_replay_signal(url)
+            self._analyze(job.id, path, mode, min_s, max_s, max_clips, replay=replay)
         except Exception as exc:
             self._fail(job, exc)
 
-    def _analyze(self, job_id: str, path: Path, mode: AnalysisMode, min_s: int, max_s: int, max_clips: int):
+    def _analyze(
+        self,
+        job_id: str,
+        path: Path,
+        mode: AnalysisMode,
+        min_s: int,
+        max_s: int,
+        max_clips: int,
+        replay=None,
+    ):
         job = self.get(job_id)
         try:
             self._set(job, "running", 20, "Validating media")
             probe_media(path, self.settings.max_video_seconds)
             self._set(job, "running", 38, "Understanding speech")
-            language_hint = "so" if mode == AnalysisMode.SOMALI else "ar" if mode in {AnalysisMode.ARABIC, AnalysisMode.QURAN} else None
+            language_hint = (
+                "so"
+                if mode == AnalysisMode.SOMALI
+                else "ar"
+                if mode in {AnalysisMode.ARABIC, AnalysisMode.QURAN}
+                else None
+            )
             transcript = transcribe(path, language=language_hint)
             effective_mode = mode
             if mode == AnalysisMode.AUTO:
-                effective_mode = AnalysisMode.ARABIC if transcript.language == "ar" else AnalysisMode.SOMALI if transcript.language == "so" else AnalysisMode.GENERAL
-            self._set(job, "running", 68, "Finding strong moments")
-            job.candidates = build_candidates(transcript.segments, effective_mode, min_s, max_s, max_clips)
+                effective_mode = (
+                    AnalysisMode.ARABIC
+                    if transcript.language == "ar"
+                    else AnalysisMode.SOMALI
+                    if transcript.language == "so"
+                    else AnalysisMode.GENERAL
+                )
+            self._set(job, "running", 58, "Reading audio and visual momentum")
+            signals = build_media_signals(path)
+            if replay:
+                signals.replay = replay
+            self._set(job, "running", 76, "Finding strong moments")
+            job.candidates = build_candidates(
+                transcript.segments,
+                effective_mode,
+                min_s,
+                max_s,
+                max_clips,
+                signals=signals,
+            )
             self._set(job, "complete", 100, f"Found {len(job.candidates)} clip candidates")
         except Exception as exc:
             self._fail(job, exc)

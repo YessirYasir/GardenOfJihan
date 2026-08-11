@@ -21,3 +21,15 @@ def test_mutation_requires_origin_and_token(tmp_path):
         payload = {"url": "https://youtube.com/watch?v=abcdefghijk"}
         response = client.post("/api/source/inspect", json=payload)
         assert response.status_code == 403
+
+
+def test_export_boundary_model_rejects_backwards_range():
+    from pydantic import ValidationError
+
+    from garden_jihan.models import ClipBoundaryOverride
+
+    try:
+        ClipBoundaryOverride(start=10, end=9)
+    except ValidationError:
+        return
+    raise AssertionError("Backwards clip boundary should be rejected")
