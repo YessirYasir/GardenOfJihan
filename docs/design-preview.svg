@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="760" viewBox="0 0 1400 760" role="img" aria-labelledby="title desc">
+  <title id="title">Garden of Jihan design direction</title>
+  <desc id="desc">A light garden inspired interface with Arabic Jihan mark, flowerbeds, and a six step video clipping workflow.</desc>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fffaf0"/><stop offset="1" stop-color="#edf3df"/></linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffffff" stop-opacity=".94"/><stop offset="1" stop-color="#fbfaf2" stop-opacity=".9"/></linearGradient>
+  </defs>
+  <rect width="1400" height="760" fill="url(#sky)"/>
+  <circle cx="1160" cy="92" r="120" fill="#f7dda0" opacity=".35"/>
+  <path d="M0 520 C180 420 310 500 460 420 C650 320 770 500 930 405 C1080 315 1220 430 1400 350 L1400 760 L0 760Z" fill="#b9d1aa" opacity=".45"/>
+  <path d="M0 600 C180 500 340 620 520 530 C700 450 830 620 1020 515 C1190 420 1280 540 1400 500 L1400 760 L0 760Z" fill="#7fa16f" opacity=".45"/>
+  <g opacity=".85">
+    <circle cx="55" cy="672" r="18" fill="#d87c9c"/><circle cx="105" cy="640" r="14" fill="#d7ad4a"/><circle cx="160" cy="688" r="16" fill="#83a9ce"/><circle cx="235" cy="650" r="20" fill="#9e83c7"/><circle cx="320" cy="692" r="16" fill="#df9165"/>
+    <circle cx="1090" cy="676" r="18" fill="#83a9ce"/><circle cx="1150" cy="640" r="16" fill="#d87c9c"/><circle cx="1220" cy="690" r="20" fill="#d7ad4a"/><circle cx="1300" cy="648" r="17" fill="#9e83c7"/><circle cx="1360" cy="692" r="15" fill="#df9165"/>
+  </g>
+  <g transform="translate(80 48)">
+    <rect width="100" height="100" rx="28" fill="#ffffff" opacity=".82" stroke="#315f43" stroke-opacity=".2"/>
+    <text x="50" y="62" text-anchor="middle" font-family="Segoe UI,Tahoma,sans-serif" font-size="31" font-weight="700" fill="#315f43">جيهان</text>
+    <text x="130" y="44" font-family="Georgia,serif" font-size="42" fill="#223329">Garden of Jihan</text>
+    <text x="132" y="76" font-family="Segoe UI,sans-serif" font-size="18" fill="#6f7f75">Find the moments worth sharing.</text>
+  </g>
+  <g transform="translate(82 185)">
+    <rect width="230" height="455" rx="26" fill="url(#panel)" stroke="#315f43" stroke-opacity=".12"/>
+    <text x="30" y="48" font-family="Segoe UI,sans-serif" font-size="13" fill="#6f7f75">WORKFLOW</text>
+    <g font-family="Segoe UI,sans-serif" font-size="16" fill="#223329">
+      <text x="32" y="92">①  Source</text><text x="32" y="146">②  Understand</text><text x="32" y="200">③  Clips</text><text x="32" y="254">④  Analyze</text><text x="32" y="308">⑤  Review</text><text x="32" y="362">⑥  Export</text>
+    </g>
+    <rect x="20" y="67" width="190" height="42" rx="13" fill="#eaf2e9"/>
+    <text x="32" y="93" font-family="Segoe UI,sans-serif" font-size="16" fill="#315f43">①  Source</text>
+    <rect x="24" y="400" width="182" height="32" rx="16" fill="#f5f7f0"/>
+    <text x="115" y="421" text-anchor="middle" font-family="Segoe UI,sans-serif" font-size="12" fill="#315f43">LOCAL • PRIVATE • FREE</text>
+  </g>
+  <g transform="translate(338 185)">
+    <rect width="980" height="455" rx="30" fill="url(#panel)" stroke="#315f43" stroke-opacity=".12"/>
+    <text x="44" y="58" font-family="Segoe UI,sans-serif" font-size="13" font-weight="700" fill="#5f8b68" letter-spacing="2">START HERE</text>
+    <text x="44" y="108" font-family="Georgia,serif" font-size="38" fill="#223329">Add a finished video</text>
+    <text x="44" y="143" font-family="Segoe UI,sans-serif" font-size="17" fill="#6f7f75">Paste a YouTube link or choose a local video. Finished livestreams stay under two hours.</text>
+    <rect x="44" y="177" width="680" height="58" rx="15" fill="#ffffff" stroke="#315f43" stroke-opacity=".18"/>
+    <text x="66" y="212" font-family="Segoe UI,sans-serif" font-size="16" fill="#8a988f">https://youtube.com/watch?v=...</text>
+    <rect x="742" y="177" width="190" height="58" rx="15" fill="#315f43"/>
+    <text x="837" y="212" text-anchor="middle" font-family="Segoe UI,sans-serif" font-size="16" fill="#ffffff">Check video</text>
+    <line x1="44" x2="932" y1="274" y2="274" stroke="#315f43" stroke-opacity=".12"/>
+    <rect x="44" y="310" width="888" height="92" rx="20" fill="#ffffff" fill-opacity=".55" stroke="#315f43" stroke-opacity=".25" stroke-dasharray="8 7"/>
+    <text x="488" y="350" text-anchor="middle" font-family="Segoe UI,sans-serif" font-size="17" font-weight="700" fill="#315f43">Choose a local video</text>
+    <text x="488" y="377" text-anchor="middle" font-family="Segoe UI,sans-serif" font-size="13" fill="#6f7f75">MP4 • MOV • MKV • WebM</text>
+  </g>
+</svg>
