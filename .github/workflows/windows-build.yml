@@ -1,10 +1,14 @@
 name: Windows build
+
 on:
   workflow_dispatch:
   push:
-    tags: ['v*']
+    tags:
+      - 'v*'
+
 permissions:
-  contents: read
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -14,10 +18,26 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
-      - run: python -m pip install -e ".[windows,ai]"
       - shell: pwsh
         run: .\scripts\build-windows.ps1
+      - name: Smoke-test packaged executable
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "dist\GardenOfJihan\GardenOfJihan.exe")) { throw "Executable missing" }
+          if (-not (Test-Path "dist\GardenOfJihan\_internal\bin\ffmpeg.exe") -and -not (Test-Path "dist\GardenOfJihan\bin\ffmpeg.exe")) { throw "Bundled ffmpeg missing" }
       - uses: actions/upload-artifact@v4
         with:
-          name: GardenOfJihan-Windows
-          path: dist/GardenOfJihan/**
+          name: GardenOfJihan-Windows-x64
+          path: dist/GardenOfJihan-Windows-x64.zip
+          if-no-files-found: error
+
+      - name: Publish GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create $env:GITHUB_REF_NAME `
+            "dist/GardenOfJihan-Windows-x64.zip" `
+            --title "Garden of Jihan $env:GITHUB_REF_NAME" `
+            --generate-notes
