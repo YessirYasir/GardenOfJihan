@@ -8,8 +8,10 @@ on:
       - 'scripts/build-windows.ps1'
       - 'scripts/smoke-captions.ps1'
       - 'scripts/smoke-auto-framing.ps1'
+      - 'scripts/smoke-windows-package.ps1'
       - 'scripts/assert-signed-release.ps1'
       - 'scripts/version-info.txt'
+      - 'THIRD-PARTY-NOTICES.md'
       - 'pyproject.toml'
       - '.github/workflows/windows-build.yml'
   push:
@@ -58,29 +60,7 @@ jobs:
 
       - name: Smoke-test packaged executable and UI
         shell: pwsh
-        run: |
-          $env:GOJ_PORT = "8765"
-          $env:GOJ_NO_BROWSER = "1"
-          $process = Start-Process -FilePath "dist\GardenOfJihan\GardenOfJihan.exe" -PassThru
-          try {
-            $healthy = $false
-            for ($i = 0; $i -lt 60; $i++) {
-              Start-Sleep -Seconds 1
-              if ($process.HasExited) { throw "GardenOfJihan.exe exited before becoming healthy" }
-              try {
-                $health = Invoke-RestMethod -Uri "http://127.0.0.1:8765/api/health" -TimeoutSec 3
-                if ($health.ok -eq $true -and $health.local -eq $true -and $health.auto_framing_available -eq $true -and $health.credential_protection_available -eq $true) {
-                  $healthy = $true
-                  break
-                }
-              } catch {}
-            }
-            if (-not $healthy) { throw "Packaged application did not become healthy in time" }
-            $homeResponse = Invoke-WebRequest -Uri "http://127.0.0.1:8765/" -TimeoutSec 5
-            if ($homeResponse.Content -notmatch "Garden of Jihan") { throw "Packaged UI did not load" }
-          } finally {
-            if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }
-          }
+        run: .\scripts\smoke-windows-package.ps1 -PackageRoot "dist\GardenOfJihan"
 
       - name: Scan packaged app with Microsoft Defender
         shell: pwsh
@@ -118,6 +98,7 @@ jobs:
           subject-path: dist/GardenOfJihan-Windows-x64.zip
 
       - uses: actions/upload-artifact@v4
+        if: startsWith(github.ref, 'refs/tags/v')
         with:
           name: GardenOfJihan-Windows-x64
           path: |

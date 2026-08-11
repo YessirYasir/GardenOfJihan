@@ -10,7 +10,7 @@ if (-not (Test-Path -LiteralPath $FfmpegPath -PathType Leaf)) {
 }
 
 $filters = (& $FfmpegPath -hide_banner -filters 2>&1 | Out-String)
-if ($LASTEXITCODE -ne 0 -or $filters -notmatch "(?m)^\s*\.\.\.\s+subtitles\s") {
+if ($LASTEXITCODE -ne 0 -or $filters -notmatch "(?m)^\s*[A-Z.]+\s+subtitles\s") {
   throw "Bundled FFmpeg does not provide the libass subtitles filter required for captions."
 }
 

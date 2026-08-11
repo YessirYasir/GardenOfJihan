@@ -1,21 +1,56 @@
+param(
+  [string]$PythonExecutable = "python",
+  [switch]$SkipDependencyInstall
+)
+
 $ErrorActionPreference = "Stop"
 
-python -m pip install --upgrade pip
-python -m pip install -e ".[windows,ai]"
+if (-not $SkipDependencyInstall) {
+  & $PythonExecutable -m pip install --upgrade pip
+  & $PythonExecutable -m pip install -e ".[windows,ai]"
+}
 
-$toolsDir = Join-Path $PWD "build-tools\ffmpeg"
+$ffmpegVersion = "8.1"
+$ffmpegArchiveSha256 = "587B1C37DE29C5003D01CF65DA10001BAC43A58B88E61AF0FC77C61DAFF04761"
+$ffmpegArchiveUrl = "https://github.com/GyanD/codexffmpeg/releases/download/$ffmpegVersion/ffmpeg-$ffmpegVersion-full_build.zip"
+$toolsRoot = Join-Path $PWD "build-tools"
+$toolsDir = Join-Path $toolsRoot "ffmpeg"
+$archivePath = Join-Path $toolsRoot "ffmpeg-$ffmpegVersion-full_build.zip"
+$downloadPath = "$archivePath.download"
+$extractRoot = Join-Path $toolsRoot "ffmpeg-$ffmpegVersion"
+$archiveBin = Join-Path $extractRoot "ffmpeg-$ffmpegVersion-full_build\bin"
+$archiveLicense = Join-Path $extractRoot "ffmpeg-$ffmpegVersion-full_build\LICENSE"
+$archiveReadme = Join-Path $extractRoot "ffmpeg-$ffmpegVersion-full_build\README.txt"
 New-Item -ItemType Directory -Force -Path $toolsDir | Out-Null
 
-Write-Host "Installing FFmpeg for the distributable..."
-choco install ffmpeg -y --no-progress
-
-$ffmpeg = (Get-Command ffmpeg.exe -ErrorAction Stop).Source
-$ffprobe = (Get-Command ffprobe.exe -ErrorAction Stop).Source
-Copy-Item $ffmpeg (Join-Path $toolsDir "ffmpeg.exe") -Force
-Copy-Item $ffprobe (Join-Path $toolsDir "ffprobe.exe") -Force
+Write-Host "Acquiring checksum-pinned FFmpeg $ffmpegVersion for the distributable..."
+$archiveValid = (Test-Path -LiteralPath $archivePath) -and ((Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash -eq $ffmpegArchiveSha256)
+if (-not $archiveValid) {
+  & curl.exe --fail --location --retry 3 --output $downloadPath $ffmpegArchiveUrl
+  if ($LASTEXITCODE -ne 0) { throw "FFmpeg archive download failed" }
+  $downloadHash = (Get-FileHash -LiteralPath $downloadPath -Algorithm SHA256).Hash
+  if ($downloadHash -ne $ffmpegArchiveSha256) {
+    Remove-Item -LiteralPath $downloadPath -Force
+    throw "Downloaded FFmpeg archive failed the pinned SHA256 check"
+  }
+  Move-Item -LiteralPath $downloadPath -Destination $archivePath -Force
+}
+Expand-Archive -LiteralPath $archivePath -DestinationPath $extractRoot -Force
+$ffmpeg = Join-Path $archiveBin "ffmpeg.exe"
+$ffprobe = Join-Path $archiveBin "ffprobe.exe"
+if (
+  -not (Test-Path -LiteralPath $ffmpeg) -or
+  -not (Test-Path -LiteralPath $ffprobe) -or
+  -not (Test-Path -LiteralPath $archiveLicense) -or
+  -not (Test-Path -LiteralPath $archiveReadme)
+) {
+  throw "Checksum-verified FFmpeg archive did not contain the expected files"
+}
+Copy-Item -LiteralPath $ffmpeg -Destination (Join-Path $toolsDir "ffmpeg.exe") -Force
+Copy-Item -LiteralPath $ffprobe -Destination (Join-Path $toolsDir "ffprobe.exe") -Force
 
 Write-Host "Building Garden of Jihan..."
-pyinstaller `
+& $PythonExecutable -m PyInstaller `
   --noconfirm `
   --clean `
   --onedir `
@@ -63,6 +98,9 @@ Never distribute an unsigned GardenOfJihan.exe as a public release. The public r
 Important: Process and republish only media you have permission to use.
 "@
 Set-Content -Path "dist\GardenOfJihan\START-HERE.txt" -Value $readme -Encoding UTF8
+Copy-Item -LiteralPath $archiveLicense -Destination "dist\GardenOfJihan\FFMPEG-LICENSE.txt" -Force
+Copy-Item -LiteralPath $archiveReadme -Destination "dist\GardenOfJihan\FFMPEG-BUILD-INFO.txt" -Force
+Copy-Item -LiteralPath "THIRD-PARTY-NOTICES.md" -Destination "dist\GardenOfJihan\THIRD-PARTY-NOTICES.md" -Force
 
 Compress-Archive -Path "dist\GardenOfJihan\*" -DestinationPath "dist\GardenOfJihan-Windows-x64.zip" -Force
 Write-Host "Build created: dist/GardenOfJihan-Windows-x64.zip"
