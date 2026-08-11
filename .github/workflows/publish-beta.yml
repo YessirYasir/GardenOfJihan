@@ -8,6 +8,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 jobs:
   publish-beta:
@@ -57,12 +59,35 @@ jobs:
             if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }
           }
 
+      - name: Scan packaged app with Microsoft Defender
+        shell: pwsh
+        run: |
+          $platformRoot = Join-Path $env:ProgramData "Microsoft\Windows Defender\Platform"
+          $mpCmdRun = $null
+          if (Test-Path $platformRoot) {
+            $latest = Get-ChildItem $platformRoot -Directory | Sort-Object Name -Descending | Select-Object -First 1
+            if ($latest) { $mpCmdRun = Join-Path $latest.FullName "MpCmdRun.exe" }
+          }
+          if (-not $mpCmdRun -or -not (Test-Path $mpCmdRun)) {
+            $fallback = Join-Path $env:ProgramFiles "Windows Defender\MpCmdRun.exe"
+            if (Test-Path $fallback) { $mpCmdRun = $fallback }
+          }
+          if (-not $mpCmdRun -or -not (Test-Path $mpCmdRun)) { throw "Microsoft Defender scanner is unavailable" }
+          $target = (Resolve-Path "dist\GardenOfJihan").Path
+          & $mpCmdRun -Scan -ScanType 3 -File $target
+          if ($LASTEXITCODE -ne 0) { throw "Microsoft Defender scan did not return a clean result (exit code $LASTEXITCODE)" }
+
       - name: Create checksum
         shell: pwsh
         run: |
           $hash = (Get-FileHash "dist\GardenOfJihan-Windows-x64.zip" -Algorithm SHA256).Hash.ToLower()
           "$hash  GardenOfJihan-Windows-x64.zip" | Set-Content "dist\GardenOfJihan-Windows-x64.sha256" -Encoding ascii
           Get-Content "dist\GardenOfJihan-Windows-x64.sha256"
+
+      - name: Attest release build provenance
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: dist/GardenOfJihan-Windows-x64.zip
 
       - name: Publish GitHub prerelease
         shell: pwsh
@@ -80,4 +105,4 @@ jobs:
             --target $env:GITHUB_SHA `
             --title "Garden of Jihan v0.1.0 Beta 1" `
             --prerelease `
-            --notes "First public Windows beta of Garden of Jihan. Download the ZIP, extract it, and open GardenOfJihan.exe. No Python, FFmpeg, subscription, credits, or paid AI API is required. This release passed CI, Ruff, Bandit, dependency audit, CodeQL, packaged-file verification, and a clean-Windows executable/UI smoke test. Advanced Qur'an/Qira'at recognition, Somali corpus validation, automatic speaker tracking, styled captions, and direct social publishing are still under active development."
+            --notes "First public Windows beta of Garden of Jihan. Download the ZIP, extract it, and open GardenOfJihan.exe. No Python, FFmpeg, subscription, credits, or paid AI API is required. This release passed CI, Ruff, Bandit, dependency audit, CodeQL, packaged-file verification, a clean-Windows executable/UI smoke test, and a Microsoft Defender Antivirus scan. A SHA256 checksum and GitHub build-provenance attestation are published for verification. Advanced Qur'an/Qira'at recognition, Somali corpus validation, automatic speaker tracking, styled captions, and direct social publishing are still under active development."
