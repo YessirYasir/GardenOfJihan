@@ -1,6 +1,6 @@
 # Garden of Jihan — جيهان
 
-![Garden of Jihan design target](docs/design-preview.png)
+![Garden of Jihan design target](docs/design-preview.svg)
 
 Garden of Jihan is a free, open-source, **local-first Windows application** that turns long-form video into ranked short-form clip candidates through a calm browser-style interface.
 
