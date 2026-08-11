@@ -90,6 +90,23 @@ async function pollJob(){
     setTimeout(pollJob,900);
   }catch(err){const box=document.getElementById('analysisError');box.textContent=err.message;box.classList.remove('hidden');}
 }
+function quranMatchMarkup(match){
+  if(!match)return '';
+  const status=String(match.status||'uncertain');
+  if(status==='reference_unavailable'){
+    return `<div class="quran-match unavailable"><div><b>Qur’an reference not installed</b><small>${escapeHtml(match.message||'Install the verified local reference before identifying Surah/Ayah.')}</small></div></div>`;
+  }
+  if(status==='uncertain' && !match.surah){
+    return `<div class="quran-match uncertain"><div><b>Surah/Ayah uncertain</b><small>${escapeHtml(match.message||'Review this passage manually before export.')}</small></div></div>`;
+  }
+  const start=`${Number(match.surah)}:${Number(match.ayah)}`;
+  const label=match.end_ayah?`${start}–${Number(match.end_ayah)}`:start;
+  const confidence=Number(match.confidence||0);
+  const confidenceText=Number.isFinite(confidence)?`${Math.round(confidence)}% match`:'Reference match';
+  const heading=status==='high_confidence'?`Qur’an ${label}`:`Possible Qur’an ${label}`;
+  const sacredText=match.text_display?`<div class="quran-display" lang="ar" dir="rtl" translate="no">${escapeHtml(match.text_display)}</div>`:'';
+  return `<div class="quran-match ${status==='high_confidence'?'high':'possible'}"><div class="quran-match-head"><b>${escapeHtml(heading)}</b><span>${escapeHtml(confidenceText)}</span></div>${sacredText}<small>${escapeHtml(match.source||'Verified local reference')} • Qira’at is not inferred from text matching</small></div>`;
+}
 function renderCandidates(){
   const grid=document.getElementById('candidateGrid');grid.innerHTML='';
   document.getElementById('emptyCandidates').classList.toggle('hidden',candidates.length>0);
@@ -98,7 +115,7 @@ function renderCandidates(){
     const card=document.createElement('article');card.className='candidate';
     const breakdown=Object.entries(c.score_breakdown||{}).filter(([,v])=>Number(v)>0).sort((a,b)=>b[1]-a[1]).slice(0,4);
     const timing=boundaries[c.id]||{start:c.start,end:c.end};
-    card.innerHTML=`<div class="candidate-head"><div><h3>${escapeHtml(c.title)} #${index+1}</h3><small class="timing-label">${formatTime(timing.start)} → ${formatTime(timing.end)}</small></div><div class="score">${Math.round(c.score)}</div></div><div class="score-breakdown">${breakdown.map(([k,v])=>`<span><b>${escapeHtml(scoreLabel(k))}</b>${Math.round(v)}</span>`).join('')}</div><ul class="reason-list">${c.reasons.map(r=>`<li>${escapeHtml(r)}</li>`).join('')}</ul><div class="candidate-actions"><button class="secondary preview">Preview</button><button class="secondary adjust">Adjust timing</button><button class="keep ${selected.has(c.id)?'on':''}">${selected.has(c.id)?'Kept':'Keep'}</button></div><div class="boundary-editor hidden"><label>Start (seconds)<input class="boundary-start" type="number" min="0" step="0.1" value="${timing.start.toFixed(1)}"></label><label>End (seconds)<input class="boundary-end" type="number" min="0.1" step="0.1" value="${timing.end.toFixed(1)}"></label><button class="primary apply-boundary">Apply timing</button><small>Use this to restore context or trim a slow opening. Maximum adjusted clip: 3 minutes.</small></div>`;
+    card.innerHTML=`<div class="candidate-head"><div><h3>${escapeHtml(c.title)} #${index+1}</h3><small class="timing-label">${formatTime(timing.start)} → ${formatTime(timing.end)}</small></div><div class="score">${Math.round(c.score)}</div></div><div class="score-breakdown">${breakdown.map(([k,v])=>`<span><b>${escapeHtml(scoreLabel(k))}</b>${Math.round(v)}</span>`).join('')}</div>${quranMatchMarkup(c.quran_match)}<ul class="reason-list">${c.reasons.map(r=>`<li>${escapeHtml(r)}</li>`).join('')}</ul><div class="candidate-actions"><button class="secondary preview">Preview</button><button class="secondary adjust">Adjust timing</button><button class="keep ${selected.has(c.id)?'on':''}">${selected.has(c.id)?'Kept':'Keep'}</button></div><div class="boundary-editor hidden"><label>Start (seconds)<input class="boundary-start" type="number" min="0" step="0.1" value="${timing.start.toFixed(1)}"></label><label>End (seconds)<input class="boundary-end" type="number" min="0.1" step="0.1" value="${timing.end.toFixed(1)}"></label><button class="primary apply-boundary">Apply timing</button><small>Use this to restore context or trim a slow opening. Maximum adjusted clip: 3 minutes.</small></div>`;
     card.querySelector('.preview').addEventListener('click',()=>{const effective=boundaries[c.id]||{start:c.start,end:c.end};const video=document.getElementById('sourcePreview');video.currentTime=effective.start;video.play();setTimeout(()=>{if(video.currentTime>=effective.end)video.pause()},Math.max(1000,(effective.end-effective.start)*1000));video.scrollIntoView({behavior:'smooth',block:'center'});});
     const editor=card.querySelector('.boundary-editor');
     card.querySelector('.adjust').addEventListener('click',()=>editor.classList.toggle('hidden'));
