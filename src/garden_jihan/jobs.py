@@ -11,6 +11,7 @@ from pathlib import Path
 from garden_jihan.analysis.audience import youtube_replay_signal
 from garden_jihan.analysis.quran import QuranReference
 from garden_jihan.analysis.scoring import build_candidates
+from garden_jihan.analysis.semantics import LocalSemanticRanker
 from garden_jihan.analysis.signals import build_media_signals
 from garden_jihan.analysis.transcription import TranscriptSegment, transcribe
 from garden_jihan.config import Settings
@@ -27,6 +28,8 @@ class JobState:
     progress: int = 0
     message: str = "Queued"
     error: str | None = None
+    ranking_method: str = "base"
+    ranking_message: str = "Base ranking"
     candidates: list[ClipCandidate] = field(default_factory=list)
     transcript_segments: list[TranscriptSegment] = field(default_factory=list)
     source_path: Path | None = None
@@ -39,6 +42,7 @@ class JobManager:
         self.settings.jobs_dir.mkdir(parents=True, exist_ok=True)
         self._jobs: dict[str, JobState] = {}
         self._lock = threading.Lock()
+        self._semantic_ranker = LocalSemanticRanker(settings.app_data / "models" / "semantic")
         self._pool = ThreadPoolExecutor(
             max_workers=settings.max_concurrent_jobs,
             thread_name_prefix="goj",
@@ -139,7 +143,12 @@ class JobManager:
             signals = build_media_signals(path)
             if replay:
                 signals.replay = replay
-            self._set(job, "running", 76, "Finding strong moments")
+            ranking_message = (
+                "Ranking complete recitation segments"
+                if effective_mode == AnalysisMode.QURAN
+                else "Loading the local multilingual meaning model"
+            )
+            self._set(job, "running", 76, ranking_message)
             job.candidates = build_candidates(
                 transcript.segments,
                 effective_mode,
@@ -147,7 +156,19 @@ class JobManager:
                 max_s,
                 max_clips,
                 signals=signals,
+                semantic_ranker=(
+                    None if effective_mode == AnalysisMode.QURAN else self._semantic_ranker
+                ),
             )
+            if effective_mode == AnalysisMode.QURAN:
+                job.ranking_method = "quran_safe"
+                job.ranking_message = "Qur'an pause-and-completeness ranking; no semantic model"
+            elif any(candidate.semantic_model for candidate in job.candidates):
+                job.ranking_method = "local_multilingual_embeddings"
+                job.ranking_message = "Local multilingual meaning model active"
+            else:
+                job.ranking_method = "base_fallback"
+                job.ranking_message = "Base ranking used; local meaning model unavailable"
             if effective_mode == AnalysisMode.QURAN:
                 self._set(job, "running", 90, "Matching the local Quran reference")
                 self._attach_quran_matches(job.candidates)
@@ -196,6 +217,8 @@ class JobManager:
             progress=job.progress,
             message=job.message,
             error=job.error,
+            ranking_method=job.ranking_method,
+            ranking_message=job.ranking_message,
             candidates=job.candidates,
         )
 

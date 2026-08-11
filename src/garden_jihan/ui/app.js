@@ -105,10 +105,22 @@ async function pollJob(){
     setProgress(data.progress,data.message);
     if(data.status==='failed')throw new Error(data.error||'Analysis failed');
     if(data.status==='complete'){
-      setAnalysisBusy(false);candidates=data.candidates||[];boundaries={};selected=new Set(candidates.filter(c=>c.score>=85).map(c=>c.id));renderCandidates();showStep(4);return;
+      setAnalysisBusy(false);candidates=data.candidates||[];boundaries={};selected=new Set(candidates.filter(c=>c.score>=85).map(c=>c.id));renderRankingStatus(data);renderCandidates();showStep(4);return;
     }
     setTimeout(pollJob,900);
   }catch(err){setAnalysisBusy(false);const box=document.getElementById('analysisError');box.textContent=err.message;box.classList.remove('hidden');}
+}
+function renderRankingStatus(data){
+  const status=document.getElementById('rankingStatus');
+  const method=String(data.ranking_method||'base_fallback');
+  status.classList.remove('hidden','active','safe','fallback');
+  if(method==='local_multilingual_embeddings'){
+    status.classList.add('active');status.innerHTML='<b>Local meaning model active</b><span>Dense multilingual embeddings support topic coherence and reduce paraphrased repeats. Somali quality remains benchmark-gated.</span>';return;
+  }
+  if(method==='quran_safe'){
+    status.classList.add('safe');status.innerHTML='<b>Qur’an-safe ranking</b><span>Uses pauses and completeness only. It does not infer Surah, Ayah, or Qira’at from semantic embeddings.</span>';return;
+  }
+  status.classList.add('fallback');status.innerHTML='<b>Base ranking used</b><span>The local meaning model was unavailable; no cloud or paid API fallback was used.</span>';
 }
 function quranMatchMarkup(match){
   if(!match)return '';
@@ -187,7 +199,7 @@ window.addEventListener('scroll',()=>{
   document.querySelector('.hill-back').style.transform=`translateY(${y*.025}px)`;
   document.querySelector('.hill-front').style.transform=`translateY(${y*.05}px)`;
 });
-function scoreLabel(key){return ({hook:'Hook',emotion:'Emotion',curiosity:'Curiosity',payoff:'Payoff',completeness:'Complete',density:'Density',novelty:'Novelty',audio:'Audio',visual:'Visual',replay:'Replay'}[key]||key);}
+function scoreLabel(key){return ({hook:'Hook',emotion:'Emotion',curiosity:'Curiosity',payoff:'Payoff',completeness:'Complete',density:'Density',novelty:'Novelty',audio:'Audio',visual:'Visual',replay:'Replay',semantic_coherence:'Topic coherence'}[key]||key);}
 function formatTime(sec){sec=Math.max(0,Math.floor(sec));const m=Math.floor(sec/60);const s=sec%60;return `${m}:${String(s).padStart(2,'0')}`;}
 function escapeHtml(value){return String(value).replace(/[&<>'"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));}
 showStep(0,{scroll:false});

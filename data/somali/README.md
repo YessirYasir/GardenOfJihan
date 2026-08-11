@@ -63,3 +63,5 @@ The command emits no transcripts or source paths. It reports:
 - per-group pair counts and accuracy.
 
 Thresholds are explicit CLI arguments so a small exploratory corpus cannot silently become a launch gate. `--allow-unadjudicated` is only for corpus development and must not be used for release claims.
+
+The production candidate builder can add a bounded local dense-embedding coherence signal using `intfloat/multilingual-e5-small`. The upstream model supports the XLM-R language set but explicitly warns that low-resource performance may degrade. That signal therefore does not change this corpus requirement: compare full end-to-end candidate selections, including semantic reranking, across every reviewer-supplied group before making Somali quality claims.

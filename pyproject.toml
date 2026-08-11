@@ -21,6 +21,7 @@ dependencies = [
 [project.optional-dependencies]
 ai = [
   "faster-whisper>=1.1,<2",
+  "fastembed>=0.8,<0.9",
 ]
 dev = [
   "pytest>=8,<10",

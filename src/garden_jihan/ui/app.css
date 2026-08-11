@@ -33,3 +33,11 @@ button:focus-visible,input:focus-visible,select:focus-visible,.dropzone:focus-wi
 .caption-controls select{min-width:0}
 .caption-safety{margin:0 0 12px;color:var(--muted);font-size:9px;line-height:1.45}
 @media(max-width:560px){.caption-controls{grid-template-columns:1fr}.export-summary{grid-template-columns:1fr}}
+
+/* Honest ranking-engine status */
+.ranking-status{display:grid;grid-template-columns:auto 1fr;gap:8px 12px;align-items:center;margin:10px 0;padding:10px 12px;border-radius:11px;border:1px solid var(--line);background:rgba(255,255,255,.58);font-size:9px}
+.ranking-status b{font-size:10px;color:var(--deep)}.ranking-status span{color:var(--muted);line-height:1.4}
+.ranking-status.active{border-color:rgba(47,118,70,.26);background:rgba(231,242,226,.76)}
+.ranking-status.safe{border-color:rgba(201,157,69,.34);background:rgba(255,247,223,.82)}
+.ranking-status.fallback{border-color:rgba(104,119,109,.25)}
+@media(max-width:560px){.ranking-status{grid-template-columns:1fr}}

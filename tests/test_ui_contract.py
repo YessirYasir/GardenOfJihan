@@ -58,3 +58,16 @@ def test_caption_controls_are_functional_and_do_not_claim_word_tracking():
     assert "caption_style:document.getElementById('captionStyle').value" in app_js
     assert "candidate.mode==='quran'" in app_js
     assert "let exportBusy=false;" in app_js
+
+
+def test_ranking_status_reports_embeddings_fallback_and_quran_safe_path():
+    html = _ui_text("index.html")
+    app_js = _ui_text("app.js")
+
+    assert 'id="rankingStatus"' in html
+    assert "Local meaning model active" in app_js
+    assert "Base ranking used" in app_js
+    assert "no cloud or paid API fallback" in app_js
+    assert "Qur’an-safe ranking" in app_js
+    assert "does not infer Surah, Ayah, or Qira’at" in app_js
+    assert "semantic_coherence:'Topic coherence'" in app_js

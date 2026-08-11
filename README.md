@@ -12,7 +12,7 @@ The application itself is already building and launching successfully on clean W
 
 Once the signed release is ready, this section will become the main one-click install/download entry point. End users will not need Python, FFmpeg, Git, a subscription, credits, or a paid AI API.
 
-The first AI analysis downloads the local Whisper model once and caches it on that PC. Video analysis and rendering then run locally.
+The first AI analysis downloads the local Whisper model and multilingual meaning model once and caches them on that PC. Video analysis and rendering then run locally. If the meaning model is unavailable, the UI reports its base-ranking fallback; it never uploads transcripts to a paid or cloud fallback.
 
 The project is designed around four principles:
 
@@ -28,7 +28,7 @@ The project is designed around four principles:
 1. Paste a supported video URL or select a local file.
 2. Choose Auto, Somali, Arabic, or Qur'an mode.
 3. Analyze finished videos / finished YouTube livestreams up to two hours.
-4. Rank non-overlapping moments using transcript meaning, audio energy, visual activity, and YouTube replay data when available.
+4. Rank non-overlapping moments using local multilingual embeddings, transcript structure, audio energy, visual activity, and YouTube replay data when available.
 5. Preview clips, adjust start/end timing, and select the strongest moments.
 6. Choose 9:16, 16:9, or 1:1 output plus manual vertical framing options.
 7. Optionally burn in locally timed transcript captions using Garden, high-contrast, or minimal styling.
@@ -74,6 +74,8 @@ Garden of Jihan is designed as local software, not an internet-facing web servic
 - Microsoft Defender Antivirus scan before release
 - SHA256 checksum and GitHub build-provenance attestation for release artifacts
 - Public release workflow requires a valid Authenticode signature
+
+The optional local meaning pass uses the MIT-licensed `intfloat/multilingual-e5-small` model through CPU-only ONNX inference. It adjusts a bounded 10% of the candidate score for within-clip topic coherence and uses semantic similarity to reduce paraphrased repeats. The original base ranking remains available when the model cannot load. Low-resource-language performance, especially Somali varieties, must pass the licensed evaluation framework before release-quality claims are made. See [`docs/SEMANTIC_MODEL.md`](docs/SEMANTIC_MODEL.md).
 
 See [`SECURITY.md`](SECURITY.md), [`PRIVACY.md`](PRIVACY.md), [`CODE_SIGNING.md`](CODE_SIGNING.md), and [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md).
 

@@ -38,3 +38,11 @@ def test_packaged_instructions_never_recommend_unsigned_distribution():
 
     assert "Windows Public Beta" not in build_script
     assert "Never distribute an unsigned GardenOfJihan.exe as a public release." in build_script
+
+
+def test_windows_package_collects_local_semantic_runtime():
+    build_script = _read("scripts/build-windows.ps1")
+
+    assert "--collect-all fastembed" in build_script
+    assert "--collect-all onnxruntime" in build_script
+    assert "never sends transcript text to a paid or cloud fallback" in build_script

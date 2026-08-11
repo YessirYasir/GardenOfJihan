@@ -49,6 +49,7 @@ class ClipCandidate(BaseModel):
     mode: AnalysisMode
     quran_match: dict | None = None
     score_breakdown: dict[str, float] = Field(default_factory=dict)
+    semantic_model: str | None = None
 
 
 class JobPublic(BaseModel):
@@ -57,6 +58,8 @@ class JobPublic(BaseModel):
     progress: int = Field(ge=0, le=100)
     message: str
     error: str | None = None
+    ranking_method: str = "base"
+    ranking_message: str = "Base ranking"
     candidates: list[ClipCandidate] = Field(default_factory=list)
 
 
