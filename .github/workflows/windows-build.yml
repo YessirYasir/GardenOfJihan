@@ -56,8 +56,8 @@ jobs:
               } catch {}
             }
             if (-not $healthy) { throw "Packaged application did not become healthy in time" }
-            $home = Invoke-WebRequest -Uri "http://127.0.0.1:8765/" -TimeoutSec 5
-            if ($home.Content -notmatch "Garden of Jihan") { throw "Packaged UI did not load" }
+            $homeResponse = Invoke-WebRequest -Uri "http://127.0.0.1:8765/" -TimeoutSec 5
+            if ($homeResponse.Content -notmatch "Garden of Jihan") { throw "Packaged UI did not load" }
           } finally {
             if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }
           }
