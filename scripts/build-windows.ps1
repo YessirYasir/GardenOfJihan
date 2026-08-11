@@ -20,6 +20,8 @@ pyinstaller `
   --clean `
   --onedir `
   --noconsole `
+  --noupx `
+  --version-file "scripts\version-info.txt" `
   --name GardenOfJihan `
   --collect-all garden_jihan `
   --collect-all faster_whisper `
@@ -49,8 +51,11 @@ The first analysis downloads the local Whisper speech model once and caches it o
 PRIVACY
 Garden of Jihan binds only to 127.0.0.1. Video processing happens on this PC. FFmpeg and ffprobe are bundled. There is no paid AI API key, subscription, credits, token balance, or telemetry requirement.
 
-WINDOWS WARNING
-This early open-source beta is not yet Authenticode code-signed. Windows SmartScreen may display an Unknown publisher warning on some PCs. Download releases only from the official YessirYasir/GardenOfJihan GitHub repository and compare the published SHA256 checksum if desired.
+TRUST AND VERIFICATION
+Official releases are built by GitHub Actions from the public source repository. Each release includes a SHA256 checksum and GitHub build-provenance attestation. The release pipeline also runs Microsoft Defender Antivirus against the packaged application before publishing.
+
+WINDOWS SIGNING
+The project is preparing free open-source code signing through SignPath Foundation. Until a trusted signature is active, SmartScreen may describe a new build as an unknown publisher even when the release pipeline and Defender scan pass. Only download releases from the official YessirYasir/GardenOfJihan repository.
 
 Important: Process and republish only media you have permission to use.
 "@
