@@ -1,10 +1,13 @@
 name: CI
+
 on:
   push:
     branches: [main]
   pull_request:
+
 permissions:
   contents: read
+
 jobs:
   test:
     runs-on: windows-latest
@@ -14,8 +17,15 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
-      - run: python -m pip install -e ".[dev]"
-      - run: pytest --cov=garden_jihan
-      - run: ruff check .
-      - run: bandit -q -r src
-      - run: pip-audit
+      - name: Install test and security dependencies
+        run: python -m pip install -e ".[dev]"
+      - name: Unit tests
+        run: python -m pytest --cov=garden_jihan --cov-report=term-missing
+      - name: Compile check
+        run: python -m compileall -q src tests
+      - name: Ruff
+        run: python -m ruff check .
+      - name: Bandit
+        run: python -m bandit -q -r src
+      - name: Dependency audit
+        run: python -m pip_audit
