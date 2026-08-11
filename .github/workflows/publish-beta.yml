@@ -77,6 +77,17 @@ jobs:
           & $mpCmdRun -Scan -ScanType 3 -File $target
           if ($LASTEXITCODE -ne 0) { throw "Microsoft Defender scan did not return a clean result (exit code $LASTEXITCODE)" }
 
+      - name: Require trusted Authenticode signature
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path "dist\GardenOfJihan\GardenOfJihan.exe").Path
+          $signature = Get-AuthenticodeSignature -FilePath $exe
+          Write-Host "Signature status: $($signature.Status)"
+          if ($signature.Status -ne "Valid" -or -not $signature.SignerCertificate) {
+            throw "Public release blocked: GardenOfJihan.exe is not signed by a valid trusted Authenticode certificate."
+          }
+          Write-Host "Publisher: $($signature.SignerCertificate.Subject)"
+
       - name: Create checksum
         shell: pwsh
         run: |
@@ -105,4 +116,4 @@ jobs:
             --target $env:GITHUB_SHA `
             --title "Garden of Jihan v0.1.0 Beta 2" `
             --prerelease `
-            --notes "Current public Windows beta of Garden of Jihan. This build restores the جيهان Arabic mark, includes the slow swaying falling-flower garden UI, and is built from the current main branch. Download the ZIP, extract it, and open GardenOfJihan.exe. No Python, FFmpeg, subscription, credits, or paid AI API is required. This release is smoke-tested on clean Windows, scanned with Microsoft Defender Antivirus, and published with SHA256 verification plus GitHub build-provenance attestation. Advanced Qur'an/Qira'at recognition, Somali corpus validation, automatic speaker tracking, styled captions, and direct social publishing remain under active development."
+            --notes "Signed Windows beta of Garden of Jihan. This build uses the جيهان Arabic mark and the production garden UI. Public release is allowed only after the executable passes the trusted Authenticode signature gate, clean-Windows smoke test, Microsoft Defender Antivirus scan, SHA256 verification, and GitHub build-provenance attestation."
