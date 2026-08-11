@@ -9,6 +9,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from garden_jihan.analysis.audience import youtube_replay_signal
+from garden_jihan.analysis.quran import QuranReference
 from garden_jihan.analysis.scoring import build_candidates
 from garden_jihan.analysis.signals import build_media_signals
 from garden_jihan.analysis.transcription import transcribe
@@ -144,9 +145,48 @@ class JobManager:
                 max_clips,
                 signals=signals,
             )
+            if effective_mode == AnalysisMode.QURAN:
+                self._set(job, "running", 90, "Matching the local Quran reference")
+                self._attach_quran_matches(job.candidates)
             self._set(job, "complete", 100, f"Found {len(job.candidates)} clip candidates")
         except Exception as exc:
             self._fail(job, exc)
+
+    def _attach_quran_matches(self, candidates: list[ClipCandidate]) -> None:
+        reference = QuranReference(self.settings.quran_reference)
+        if not reference.available:
+            for candidate in candidates:
+                candidate.quran_match = {
+                    "status": "reference_unavailable",
+                    "message": "Install the verified local Quran reference before identifying Surah/Ayah.",
+                }
+            return
+
+        source_name = reference.source.get("name", "local verified reference")
+        for candidate in candidates:
+            matches = reference.match(candidate.transcript)
+            if not matches:
+                candidate.quran_match = {
+                    "status": "uncertain",
+                    "source": source_name,
+                    "message": "No sufficiently confident Surah/Ayah match. Review manually.",
+                }
+                continue
+
+            best = matches[0]
+            public = best.public()
+            public["source"] = source_name
+            candidate.quran_match = public
+            ayah_label = f"{best.surah}:{best.ayah}"
+            if best.end_ayah:
+                ayah_label += f"–{best.end_ayah}"
+            if public["status"] == "high_confidence":
+                candidate.title = f"Qur'an {ayah_label}"
+                reason = f"High-confidence Quran reference match: {ayah_label}"
+            else:
+                candidate.title = f"Possible Qur'an {ayah_label}"
+                reason = f"Possible Quran reference match: {ayah_label}; review before export"
+            candidate.reasons = [reason, *candidate.reasons][:6]
 
     def _fail(self, job: JobState, exc: Exception):
         with self._lock:
