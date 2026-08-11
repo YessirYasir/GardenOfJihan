@@ -87,15 +87,15 @@
           <label>Maximum length<select id="maxSeconds"><option value="60">60 seconds</option><option value="75" selected>75 seconds</option><option value="90">90 seconds</option></select></label>
         </div>
         <div class="future-tools">
-          <div><span>✦</span><b>Smart framing</b><small>Speaker-aware crop is on the roadmap.</small></div>
-          <div><span>✦</span><b>Word tracking</b><small>Arabic/Qur’an overlay editor is being built as a verified module.</small></div>
+          <div><span>✦</span><b>Multi-signal ranking</b><small>Speech meaning, audio energy, scene changes, and replay data are blended locally.</small></div>
+          <div><span>✦</span><b>Smart framing</b><small>Speaker-aware vertical framing is the next video module.</small></div>
         </div>
       </div>
 
       <div class="screen" data-screen="3">
         <p class="eyebrow">Analysis</p>
         <h2>Let the garden find what stands out</h2>
-        <p class="lede">The first build uses local transcription plus language-aware scoring. More signals will plug into the same ranking engine.</p>
+        <p class="lede">Garden of Jihan combines local transcription with language-aware meaning, audio energy, visual activity, and YouTube replay data when available.</p>
         <button id="startAnalysis" class="primary large">Find the best moments</button>
         <div class="progress-panel">
           <div class="progress-head"><span id="progressLabel">Ready</span><strong id="progressValue">0%</strong></div>
@@ -103,8 +103,8 @@
           <ul class="progress-list">
             <li id="phase1">Prepare the source</li>
             <li id="phase2">Understand speech</li>
-            <li id="phase3">Find strong moments</li>
-            <li id="phase4">Rank non-overlapping clips</li>
+            <li id="phase3">Read audio &amp; visual momentum</li>
+            <li id="phase4">Rank distinct strong moments</li>
           </ul>
         </div>
         <div id="analysisError" class="notice error hidden" aria-live="polite"></div>
