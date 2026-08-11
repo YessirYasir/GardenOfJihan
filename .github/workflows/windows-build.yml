@@ -6,6 +6,7 @@ on:
     paths:
       - 'src/**'
       - 'scripts/build-windows.ps1'
+      - 'scripts/version-info.txt'
       - 'pyproject.toml'
       - '.github/workflows/windows-build.yml'
   push:
@@ -62,10 +63,36 @@ jobs:
             if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }
           }
 
+      - name: Scan packaged app with Microsoft Defender
+        shell: pwsh
+        run: |
+          $platformRoot = Join-Path $env:ProgramData "Microsoft\Windows Defender\Platform"
+          $mpCmdRun = $null
+          if (Test-Path $platformRoot) {
+            $latest = Get-ChildItem $platformRoot -Directory | Sort-Object Name -Descending | Select-Object -First 1
+            if ($latest) { $mpCmdRun = Join-Path $latest.FullName "MpCmdRun.exe" }
+          }
+          if (-not $mpCmdRun -or -not (Test-Path $mpCmdRun)) {
+            $fallback = Join-Path $env:ProgramFiles "Windows Defender\MpCmdRun.exe"
+            if (Test-Path $fallback) { $mpCmdRun = $fallback }
+          }
+          if (-not $mpCmdRun -or -not (Test-Path $mpCmdRun)) { throw "Microsoft Defender scanner is unavailable" }
+          $target = (Resolve-Path "dist\GardenOfJihan").Path
+          & $mpCmdRun -Scan -ScanType 3 -File $target
+          if ($LASTEXITCODE -ne 0) { throw "Microsoft Defender scan did not return a clean result (exit code $LASTEXITCODE)" }
+
+      - name: Create checksum
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash "dist\GardenOfJihan-Windows-x64.zip" -Algorithm SHA256).Hash.ToLower()
+          "$hash  GardenOfJihan-Windows-x64.zip" | Set-Content "dist\GardenOfJihan-Windows-x64.sha256" -Encoding ascii
+
       - uses: actions/upload-artifact@v4
         with:
           name: GardenOfJihan-Windows-x64
-          path: dist/GardenOfJihan-Windows-x64.zip
+          path: |
+            dist/GardenOfJihan-Windows-x64.zip
+            dist/GardenOfJihan-Windows-x64.sha256
           if-no-files-found: error
 
   publish:
@@ -85,6 +112,7 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" \
             "release/GardenOfJihan-Windows-x64.zip" \
+            "release/GardenOfJihan-Windows-x64.sha256" \
             --repo "$GITHUB_REPOSITORY" \
             --title "Garden of Jihan $GITHUB_REF_NAME" \
             --generate-notes
