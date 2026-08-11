@@ -27,4 +27,4 @@ No software is “unhackable” or “non-traceable.” Garden of Jihan instead 
 
 ## Release policy
 
-Before a stable release, CI should pass unit tests, Ruff, Bandit, pip-audit, and CodeQL. Windows artifacts should be built only from tagged commits through GitHub Actions.
+Before a stable release, CI must pass unit tests, Ruff, Bandit, pip-audit, and CodeQL. Windows artifacts must be built only from tagged commits through GitHub Actions. Public workflows fail closed unless the executable inside the exact release ZIP has a valid trusted Authenticode signature; unsigned CI builds are validation artifacts and must not be published or recommended.

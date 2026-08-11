@@ -83,16 +83,9 @@ jobs:
           & $mpCmdRun -Scan -ScanType 3 -File $target
           if ($LASTEXITCODE -ne 0) { throw "Microsoft Defender scan did not return a clean result (exit code $LASTEXITCODE)" }
 
-      - name: Require trusted Authenticode signature
+      - name: Require trusted signature in the public release ZIP
         shell: pwsh
-        run: |
-          $exe = (Resolve-Path "dist\GardenOfJihan\GardenOfJihan.exe").Path
-          $signature = Get-AuthenticodeSignature -FilePath $exe
-          Write-Host "Signature status: $($signature.Status)"
-          if ($signature.Status -ne "Valid" -or -not $signature.SignerCertificate) {
-            throw "Public release blocked: GardenOfJihan.exe is not signed by a valid trusted Authenticode certificate."
-          }
-          Write-Host "Publisher: $($signature.SignerCertificate.Subject)"
+        run: .\scripts\assert-signed-release.ps1 -PackageRoot "dist\GardenOfJihan" -ArchivePath "dist\GardenOfJihan-Windows-x64.zip"
 
       - name: Create checksum
         shell: pwsh
