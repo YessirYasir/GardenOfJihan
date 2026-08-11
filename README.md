@@ -91,7 +91,7 @@ The offline matcher uses a reviewed, checksum-pinned Tanzil profile. Quran Found
 
 ## Somali language benchmark
 
-The project keeps dialectal speech and normalized spelling as separate annotation fields so regional Somali is not silently rewritten into one standard variety. See [`data/somali/README.md`](data/somali/README.md).
+The project keeps dialectal speech and normalized spelling as separate annotation fields so regional Somali is not silently rewritten into one standard variety. A local evaluator now reports pairwise, macro-group, worst-group, spelling-variation, and code-switching metrics; a representative licensed gold corpus is still required before release-quality claims can be made. See [`data/somali/README.md`](data/somali/README.md).
 
 ## License
 

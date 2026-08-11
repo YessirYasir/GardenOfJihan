@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gardenofjihan.local/schemas/somali-evaluation-item.json",
+  "title": "Garden of Jihan Somali ranking evaluation item",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "pair_id",
+    "preferred",
+    "duration",
+    "verbatim",
+    "dialect_group",
+    "source_id",
+    "license",
+    "reviewers",
+    "adjudicated"
+  ],
+  "properties": {
+    "id": {"type": "string", "minLength": 1},
+    "pair_id": {"type": "string", "minLength": 1},
+    "preferred": {"type": "boolean"},
+    "duration": {"type": "number", "exclusiveMinimum": 0, "maximum": 180},
+    "verbatim": {"type": "string", "minLength": 1},
+    "normalized": {"type": ["string", "null"], "minLength": 1},
+    "dialect_group": {"type": "string", "minLength": 1},
+    "subvariety": {"type": ["string", "null"], "minLength": 1},
+    "region": {"type": ["string", "null"], "minLength": 1},
+    "speaker_id": {"type": ["string", "null"], "minLength": 1},
+    "genre": {"type": ["string", "null"], "minLength": 1},
+    "audio_quality": {"type": ["string", "null"], "minLength": 1},
+    "code_switching": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true,
+      "default": []
+    },
+    "source_id": {"type": "string", "minLength": 1},
+    "license": {"type": "string", "minLength": 1},
+    "reviewers": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "minItems": 2,
+      "uniqueItems": true
+    },
+    "adjudicated": {"type": "boolean", "const": true}
+  }
+}

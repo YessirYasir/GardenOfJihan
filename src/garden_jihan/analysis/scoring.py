@@ -6,6 +6,7 @@ from collections import Counter
 from dataclasses import asdict, dataclass, field
 
 from garden_jihan.analysis.signals import MediaSignals
+from garden_jihan.analysis.somali import somali_matching_tokens
 from garden_jihan.analysis.transcription import TranscriptSegment
 from garden_jihan.models import AnalysisMode, ClipCandidate
 
@@ -16,7 +17,7 @@ HOOKS = {
     },
     "somali": {
         "bal", "ogow", "sabab", "maxaa", "sidee", "runta", "qalad", "dhib", "marka", "laakiin",
-        "xaqiiqda", "fiiri", "maqal", "marnaba", "qofna", "dadka", "arrin", "su'aal",
+        "xaqiiqda", "fiiri", "maqal", "marnaba", "qofna", "dadka", "arrin", "suaal",
     },
     "arabic": {
         "اسمع", "لماذا", "كيف", "الحقيقة", "لكن", "مشكلة", "سبب", "تخيل", "انتبه", "هل",
@@ -85,7 +86,9 @@ def _language_key(mode: AnalysisMode) -> str:
     return "general" if mode in {AnalysisMode.AUTO, AnalysisMode.GENERAL, AnalysisMode.QURAN} else mode.value
 
 
-def _tokens(text: str) -> list[str]:
+def _tokens(text: str, key: str = "general") -> list[str]:
+    if key == "somali":
+        return somali_matching_tokens(text)
     return re.findall(r"[\w\u0600-\u06FF'-]+", text.lower(), flags=re.UNICODE)
 
 
@@ -103,8 +106,8 @@ def _clamp(value: float) -> float:
 
 
 def _jaccard(a: str, b: str, key: str) -> float:
-    a_tokens = set(_content_tokens(_tokens(a), key))
-    b_tokens = set(_content_tokens(_tokens(b), key))
+    a_tokens = set(_content_tokens(_tokens(a, key), key))
+    b_tokens = set(_content_tokens(_tokens(b, key), key))
     if not a_tokens or not b_tokens:
         return 0.0
     return len(a_tokens & b_tokens) / len(a_tokens | b_tokens)
@@ -120,7 +123,7 @@ def score_text_detailed(
     replay_signal: float | None = None,
 ) -> tuple[float, list[str], dict[str, float]]:
     key = _language_key(mode)
-    tokens = _tokens(text)
+    tokens = _tokens(text, key)
     content = _content_tokens(tokens, key)
     first = tokens[: min(30, len(tokens))]
     final = tokens[-min(24, len(tokens)) :] if tokens else []
