@@ -41,7 +41,7 @@ class AnalyzeRequest(BaseModel):
 
 
 class ClipCandidate(BaseModel):
-    id: str
+    id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,64}$")
     start: float
     end: float
     score: float = Field(ge=0, le=100)

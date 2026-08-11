@@ -1,3 +1,4 @@
+import threading
 import time
 
 from fastapi.testclient import TestClient
@@ -144,6 +145,19 @@ def _complete_export_job(app, tmp_path, mode=AnalysisMode.GENERAL):
     return job
 
 
+def _await_export(client, response):
+    assert response.status_code == 202
+    export_id = response.json()["id"]
+    for _attempt in range(200):
+        status = client.get(f"/api/exports/{export_id}")
+        assert status.status_code == 200
+        data = status.json()
+        if data["status"] in {"complete", "failed"}:
+            return data
+        time.sleep(0.01)
+    raise AssertionError("Background export did not finish")
+
+
 def test_export_passes_clipped_caption_cues_and_style(tmp_path, monkeypatch):
     settings = Settings(app_data=tmp_path)
     app = create_app(port=8765, settings=settings, session_token="test-token")
@@ -154,8 +168,9 @@ def test_export_passes_clipped_caption_cues_and_style(tmp_path, monkeypatch):
     def fake_render(*args, **kwargs):
         captured["args"] = args
         captured["kwargs"] = kwargs
+        args[1].write_bytes(b"rendered")
 
-    monkeypatch.setattr("garden_jihan.server.render_clip", fake_render)
+    monkeypatch.setattr("garden_jihan.media.exporting.render_clip", fake_render)
     headers = {"origin": "http://127.0.0.1:8765", "x-goj-token": "test-token"}
     payload = {
         "candidate_ids": ["candidate123"],
@@ -166,8 +181,9 @@ def test_export_passes_clipped_caption_cues_and_style(tmp_path, monkeypatch):
     }
     with TestClient(app, base_url="http://127.0.0.1:8765") as client:
         response = client.post(f"/api/jobs/{job.id}/export", headers=headers, json=payload)
+        export = _await_export(client, response)
 
-    assert response.status_code == 200
+    assert export["status"] == "complete"
     cue = captured["kwargs"]["caption_cues"][0]
     assert (cue.start, cue.end, cue.text) == (0.0, 3.0, "A timed transcript segment.")
     assert captured["kwargs"]["caption_style"] == "high-contrast"
@@ -178,7 +194,6 @@ def test_quran_export_captions_fail_closed_without_acoustic_timing(tmp_path, mon
     settings = Settings(app_data=tmp_path)
     app = create_app(port=8765, settings=settings, session_token="test-token")
     job = _complete_export_job(app, tmp_path, AnalysisMode.QURAN)
-    monkeypatch.setattr("garden_jihan.server.render_clip", lambda *_args, **_kwargs: None)
     headers = {"origin": "http://127.0.0.1:8765", "x-goj-token": "test-token"}
     with TestClient(app, base_url="http://127.0.0.1:8765") as client:
         response = client.post(
@@ -191,6 +206,39 @@ def test_quran_export_captions_fail_closed_without_acoustic_timing(tmp_path, mon
     assert "verified acoustic timing" in response.json()["detail"]
 
 
+def test_export_runs_off_request_thread_and_rejects_duplicate_project_export(
+    tmp_path, monkeypatch
+):
+    settings = Settings(app_data=tmp_path)
+    app = create_app(port=8765, settings=settings, session_token="test-token")
+    job = _complete_export_job(app, tmp_path)
+    started = threading.Event()
+    release = threading.Event()
+    monkeypatch.setattr("garden_jihan.server.probe_media", lambda *_args: {"duration": 30.0})
+
+    def blocking_render(*args, **_kwargs):
+        args[1].write_bytes(b"rendered")
+        started.set()
+        assert release.wait(timeout=5)
+
+    monkeypatch.setattr("garden_jihan.media.exporting.render_clip", blocking_render)
+    headers = {"origin": "http://127.0.0.1:8765", "x-goj-token": "test-token"}
+    payload = {"candidate_ids": ["candidate123"], "framing": "center"}
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        response = client.post(f"/api/jobs/{job.id}/export", headers=headers, json=payload)
+        assert response.status_code == 202
+        assert started.wait(timeout=2)
+        assert client.get("/api/health").status_code == 200
+        duplicate = client.post(f"/api/jobs/{job.id}/export", headers=headers, json=payload)
+        assert duplicate.status_code == 409
+        assert "already running" in duplicate.json()["detail"]
+        release.set()
+        export = _await_export(client, response)
+
+    assert export["status"] == "complete"
+
+
 def test_auto_framing_passes_confident_points_and_reports_evidence(tmp_path, monkeypatch):
     settings = Settings(app_data=tmp_path)
     app = create_app(port=8765, settings=settings, session_token="test-token")
@@ -198,7 +246,7 @@ def test_auto_framing_passes_confident_points_and_reports_evidence(tmp_path, mon
     captured = {}
     monkeypatch.setattr("garden_jihan.server.probe_media", lambda *_args: {"duration": 30.0})
     monkeypatch.setattr(
-        "garden_jihan.server.analyze_auto_framing",
+        "garden_jihan.media.exporting.analyze_auto_framing",
         lambda *_args: FramingDecision(
             applied="auto-speaking-face",
             confidence=0.86,
@@ -206,10 +254,11 @@ def test_auto_framing_passes_confident_points_and_reports_evidence(tmp_path, mon
             points=(FramingPoint(0.0, 0.25), FramingPoint(6.0, 0.75)),
         ),
     )
-    monkeypatch.setattr(
-        "garden_jihan.server.render_clip",
-        lambda *args, **kwargs: captured.update(args=args, kwargs=kwargs),
-    )
+    def fake_render(*args, **kwargs):
+        captured.update(args=args, kwargs=kwargs)
+        args[1].write_bytes(b"rendered")
+
+    monkeypatch.setattr("garden_jihan.media.exporting.render_clip", fake_render)
     headers = {"origin": "http://127.0.0.1:8765", "x-goj-token": "test-token"}
 
     with TestClient(app, base_url="http://127.0.0.1:8765") as client:
@@ -218,14 +267,15 @@ def test_auto_framing_passes_confident_points_and_reports_evidence(tmp_path, mon
             headers=headers,
             json={"candidate_ids": ["candidate123"], "framing": "auto"},
         )
+        export = _await_export(client, response)
 
-    assert response.status_code == 200
+    assert export["status"] == "complete"
     assert captured["args"][5] == "center"
     assert captured["kwargs"]["framing_points"] == (
         FramingPoint(0.0, 0.25),
         FramingPoint(6.0, 0.75),
     )
-    assert response.json()["files"][0]["framing"] == {
+    assert export["files"][0]["framing"] == {
         "requested": "auto",
         "applied": "auto-speaking-face",
         "confidence": 0.86,
@@ -238,7 +288,10 @@ def test_auto_framing_non_vertical_export_reports_center_fallback(tmp_path, monk
     app = create_app(port=8765, settings=settings, session_token="test-token")
     job = _complete_export_job(app, tmp_path)
     monkeypatch.setattr("garden_jihan.server.probe_media", lambda *_args: {"duration": 30.0})
-    monkeypatch.setattr("garden_jihan.server.render_clip", lambda *_args, **_kwargs: None)
+    def fake_render(*args, **_kwargs):
+        args[1].write_bytes(b"rendered")
+
+    monkeypatch.setattr("garden_jihan.media.exporting.render_clip", fake_render)
     headers = {"origin": "http://127.0.0.1:8765", "x-goj-token": "test-token"}
 
     with TestClient(app, base_url="http://127.0.0.1:8765") as client:
@@ -251,8 +304,9 @@ def test_auto_framing_non_vertical_export_reports_center_fallback(tmp_path, monk
                 "aspect": "1:1",
             },
         )
+        export = _await_export(client, response)
 
-    framing = response.json()["files"][0]["framing"]
+    framing = export["files"][0]["framing"]
     assert framing["applied"] == "center"
     assert framing["confidence"] == 0.0
     assert "only to vertical 9:16" in framing["message"]

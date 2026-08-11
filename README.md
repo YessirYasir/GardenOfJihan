@@ -32,7 +32,7 @@ The project is designed around four principles:
 5. Preview clips, adjust start/end timing, and select the strongest moments.
 6. Choose 9:16, 16:9, or 1:1 output. Vertical clips can use confidence-gated local face/activity framing or a manual fallback.
 7. Optionally burn in locally timed transcript captions using Garden, high-contrast, or minimal styling.
-8. Render clean MP4 clips locally and save them.
+8. Render clean MP4 clips in a bounded background queue, follow clip-by-clip progress, and save them without freezing the local editor.
 9. Optionally publish an explicit export through the official YouTube OAuth/upload API after choosing visibility and required disclosures.
 
 Completed analyses are saved as versioned local project manifests alongside their isolated source files. The dashboard can resume kept clips, timing adjustments, and export settings after an app restart. These projects remain on the computer until the user removes them from the project library; incomplete temporary jobs continue to use automatic retention cleanup.

@@ -58,6 +58,9 @@ def test_caption_controls_are_functional_and_do_not_claim_word_tracking():
     assert "caption_style:document.getElementById('captionStyle').value" in app_js
     assert "candidate.mode==='quran'" in app_js
     assert "let exportBusy=false;" in app_js
+    assert "/api/exports/${exportId}" in app_js
+    assert "Rendering clip" not in app_js
+    assert "data.progress" in app_js
 
 
 def test_ranking_status_reports_embeddings_fallback_and_quran_safe_path():

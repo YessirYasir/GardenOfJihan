@@ -227,22 +227,41 @@ syncCaptionControls();
 
 const renderClipsButton=document.getElementById('renderClips');
 let exportBusy=false;
+function setExportBusy(busy){exportBusy=busy;renderClipsButton.disabled=busy;renderClipsButton.setAttribute('aria-busy',String(busy));}
+function showExportedFiles(files){
+  const box=document.getElementById('exportMessage');const list=document.getElementById('downloadList');
+  box.innerHTML=`<strong>Ready.</strong> ${files.length} clip${files.length===1?'':'s'} rendered.`;exportedFiles=files;syncPublishFiles();
+  [...new Set(files.map(file=>file.framing?.message).filter(Boolean))].forEach(message=>{const note=document.createElement('div');note.className='export-note';note.textContent=message;box.appendChild(note);});
+  files.forEach(file=>{const a=document.createElement('a');a.className='download-link';a.href=file.url;a.download=file.name;a.title=file.framing?.message||'';a.innerHTML=`<span>${escapeHtml(file.name)}</span><strong>Save ↓</strong>`;list.appendChild(a);});
+}
+async function pollExport(exportId,projectId){
+  const box=document.getElementById('exportMessage');
+  try{
+    const res=await api(`/api/exports/${exportId}`);const data=await res.json();if(!res.ok)throw new Error(data.detail||'Export status unavailable');
+    box.textContent=`${data.message} • ${data.progress}%`;
+    if(data.status==='failed')throw new Error(data.error||'Local render failed');
+    if(data.status==='complete'){
+      setExportBusy(false);
+      if(currentJob!==projectId){box.textContent='Export completed for another project. Resume that project to render or publish its clips.';return;}
+      showExportedFiles(data.files||[]);return;
+    }
+    setTimeout(()=>pollExport(exportId,projectId),900);
+  }catch(err){box.classList.add('error');box.textContent=err.message;setExportBusy(false);}
+}
 renderClipsButton.addEventListener('click',async()=>{
   if(exportBusy)return;
   const box=document.getElementById('exportMessage');const list=document.getElementById('downloadList');list.innerHTML='';exportedFiles=[];syncPublishFiles();box.classList.remove('hidden','error');
   if(!currentJob||selected.size===0){box.textContent='Choose at least one clip first.';return;}
   const captions=document.getElementById('captions').value==='segments';
   if(captions&&candidates.some(candidate=>selected.has(candidate.id)&&candidate.mode==='quran')){box.classList.add('error');box.textContent='Qur’an burn-in captions stay disabled until verified acoustic timing exists. Export without captions and use the reference-backed review panel.';return;}
-  exportBusy=true;renderClipsButton.disabled=true;renderClipsButton.setAttribute('aria-busy','true');
+  setExportBusy(true);
   box.textContent='Rendering locally with FFmpeg…';
   try{
+    const exportProject=currentJob;
     const selectedBoundaries=Object.fromEntries([...selected].filter(id=>boundaries[id]).map(id=>[id,boundaries[id]]));
     const res=await api(`/api/jobs/${currentJob}/export`,{method:'POST',body:JSON.stringify({candidate_ids:[...selected],aspect:document.getElementById('aspect').value,framing:document.getElementById('framing').value,captions,caption_style:document.getElementById('captionStyle').value,caption_position:document.getElementById('captionPosition').value,boundaries:selectedBoundaries})});const data=await res.json();if(!res.ok)throw new Error(data.detail||'Render failed');
-    box.innerHTML=`<strong>Ready.</strong> ${data.files.length} clip${data.files.length===1?'':'s'} rendered.`;exportedFiles=data.files||[];syncPublishFiles();
-    [...new Set(data.files.map(file=>file.framing?.message).filter(Boolean))].forEach(message=>{const note=document.createElement('div');note.className='export-note';note.textContent=message;box.appendChild(note);});
-    data.files.forEach(file=>{const a=document.createElement('a');a.className='download-link';a.href=file.url;a.download=file.name;a.title=file.framing?.message||'';a.innerHTML=`<span>${escapeHtml(file.name)}</span><strong>Save ↓</strong>`;list.appendChild(a);});
-  }catch(err){box.classList.add('error');box.textContent=err.message;}
-  finally{exportBusy=false;renderClipsButton.disabled=false;renderClipsButton.setAttribute('aria-busy','false');}
+    pollExport(data.id,exportProject);
+  }catch(err){box.classList.add('error');box.textContent=err.message;setExportBusy(false);}
 });
 
 let youtubeConnected=false;

@@ -12,13 +12,10 @@ from fastapi.staticfiles import StaticFiles
 from garden_jihan.analysis.quran import QuranReference
 from garden_jihan.config import Settings
 from garden_jihan.jobs import JobManager
-from garden_jihan.media.framing import (
-    FramingDecision,
-    analyze_auto_framing,
-    auto_framing_runtime_status,
-)
+from garden_jihan.media.exporting import ExportManager, ExportPlan, PreparedExportClip
+from garden_jihan.media.framing import auto_framing_runtime_status
 from garden_jihan.media.probe import probe_media
-from garden_jihan.media.render import caption_cues_for_range, render_clip
+from garden_jihan.media.render import caption_cues_for_range
 from garden_jihan.media.sources import inspect_source
 from garden_jihan.models import (
     AnalysisMode,
@@ -66,6 +63,7 @@ def create_app(port: int, settings: Settings | None = None, session_token: str |
     app.state.settings = settings
     app.state.session_token = token
     app.state.jobs = JobManager(settings)
+    app.state.exports = ExportManager(max_workers=settings.max_concurrent_jobs)
     app.state.youtube_publisher = YouTubePublisher(
         ProtectedJsonStore(settings.app_data / "credentials" / "youtube.bin")
     )
@@ -297,7 +295,7 @@ def create_app(port: int, settings: Settings | None = None, session_token: str |
             raise HTTPException(status_code=404, detail="Source media is unavailable")
         return FileResponse(job.source_path)
 
-    @app.post("/api/jobs/{job_id}/export")
+    @app.post("/api/jobs/{job_id}/export", status_code=202)
     async def export(job_id: str, payload: ExportRequest):
         try:
             job = app.state.jobs.get(job_id)
@@ -322,7 +320,7 @@ def create_app(port: int, settings: Settings | None = None, session_token: str |
             requested.append(candidate)
 
         output_dir = safe_job_path(settings.jobs_dir, job.id) / "output"
-        files = []
+        prepared = []
         media_info = probe_media(job.source_path, settings.max_video_seconds)
         source_duration = float(media_info["duration"])
         for index, candidate in enumerate(requested, start=1):
@@ -336,7 +334,6 @@ def create_app(port: int, settings: Settings | None = None, session_token: str |
             if end > source_duration + 0.05:
                 raise HTTPException(status_code=400, detail="Adjusted clip exceeds source duration")
             filename = f"clip_{index:02d}_{candidate.id}.mp4"
-            destination = output_dir / filename
             caption_cues = None
             if payload.captions:
                 caption_cues = caption_cues_for_range(job.transcript_segments, start, end)
@@ -345,53 +342,37 @@ def create_app(port: int, settings: Settings | None = None, session_token: str |
                         status_code=409,
                         detail="No timed transcript segments are available for these captions",
                     )
-            render_framing = payload.framing
-            framing_points = None
-            if payload.framing == "auto":
-                render_framing = "center"
-                if payload.aspect != "9:16":
-                    framing_decision = FramingDecision(
-                        applied="center",
-                        confidence=0.0,
-                        message="Auto framing applies only to vertical 9:16 exports.",
-                    )
-                else:
-                    framing_decision = analyze_auto_framing(
-                        job.source_path,
-                        start,
-                        end,
-                        job.media_signals,
-                    )
-                    framing_points = framing_decision.points
-            else:
-                framing_decision = FramingDecision(
-                    applied=payload.framing,
-                    confidence=1.0,
-                    message=f"Manual {payload.framing} framing applied.",
+            prepared.append(
+                PreparedExportClip(
+                    candidate_id=candidate.id,
+                    filename=filename,
+                    start=start,
+                    end=end,
+                    caption_cues=tuple(caption_cues or ()),
                 )
-            try:
-                render_clip(
-                    job.source_path,
-                    destination,
-                    start,
-                    end,
-                    payload.aspect,
-                    render_framing,
-                    framing_points=framing_points,
-                    caption_cues=caption_cues,
-                    caption_style=payload.caption_style,
-                    caption_position=payload.caption_position,
-                )
-            except Exception as exc:
-                raise HTTPException(status_code=500, detail=f"Render failed: {exc}") from exc
-            files.append(
-                {
-                    "name": filename,
-                    "url": f"/api/jobs/{job.id}/output/{filename}",
-                    "framing": framing_decision.public(payload.framing),
-                }
             )
-        return {"files": files}
+        plan = ExportPlan(
+            project_id=job.id,
+            source=job.source_path,
+            output_dir=output_dir,
+            media_signals=job.media_signals,
+            aspect=payload.aspect,
+            framing=payload.framing,
+            caption_style=payload.caption_style,
+            caption_position=payload.caption_position,
+            clips=tuple(prepared),
+        )
+        try:
+            return app.state.exports.submit(plan).public()
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/api/exports/{export_id}")
+    async def export_status(export_id: str):
+        try:
+            return app.state.exports.public(export_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Unknown export") from exc
 
     @app.post("/api/jobs/{job_id}/publish/youtube")
     async def publish_youtube(job_id: str, payload: YouTubePublishRequest):
