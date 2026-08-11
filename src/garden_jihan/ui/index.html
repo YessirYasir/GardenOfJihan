@@ -53,8 +53,8 @@
         <button class="step" data-step="5"><span>⇩</span><b>Exports</b><small>Render &amp; save</small></button>
       </div>
       <div class="side-heading">CAPABILITIES</div>
-      <div class="side-links"><span>☷ Somali understanding</span><span>۞ Arabic understanding</span><span>☾ Qur’an-aware path</span><span>◫ Vertical 9:16</span><span>▭ Landscape 16:9</span><span>□ Square 1:1</span></div>
-      <div class="system-status"><span class="status-dot"></span><div><small>System Status</small><strong>All local services ready</strong></div><em>⌁</em></div>
+      <div class="side-links"><span>☷ Somali-aware ranking</span><span>۞ Arabic-aware ranking</span><span>☾ Qur’an-aware path</span><span>◫ Vertical 9:16</span><span>▭ Landscape 16:9</span><span>□ Square 1:1</span></div>
+      <div class="system-status"><span class="status-dot"></span><div><small>System Status</small><strong>Local interface connected</strong></div><em>⌁</em></div>
     </aside>
 
     <section class="workspace glass-panel">
@@ -63,7 +63,7 @@
       <div class="screen active" data-screen="0">
         <div class="panel-title"><span>1.</span><div><h2>Add Video Source</h2><p>Paste a supported link or choose a local video. Finished livestreams must be under two hours.</p></div></div>
         <div class="source-card">
-          <div class="input-row"><input id="sourceUrl" type="url" placeholder="https://youtube.com/watch?v=..." autocomplete="off"><button id="inspectSource" class="primary">Analyze source ✦</button></div>
+          <div class="input-row"><input id="sourceUrl" type="url" placeholder="https://youtube.com/watch?v=..." autocomplete="off"><button id="inspectSource" class="primary">Check source ✦</button></div>
           <div id="sourceMessage" class="notice hidden" aria-live="polite"></div>
           <div class="source-meta"><span>Local processing</span><span>2 hour maximum</span><span>YouTube • TikTok • Instagram</span></div>
         </div>
@@ -71,7 +71,7 @@
         <label class="dropzone" for="fileInput"><input id="fileInput" type="file" accept="video/mp4,video/quicktime,video/x-matroska,video/webm,.m4v"><span class="upload-icon">⇧</span><strong>Choose a local video</strong><small>MP4, MOV, MKV, WebM, M4V • stays on this computer</small></label>
         <div id="fileMessage" class="notice hidden" aria-live="polite"></div>
         <div class="dashboard-preview-grid">
-          <article><b>✦ Multi-signal ranking</b><p>Speech meaning, audio energy, visual activity, and replay signals work together.</p></article>
+          <article><b>✦ Multi-signal ranking</b><p>Transcript structure, audio energy, visual activity, and replay signals work together.</p></article>
           <article><b>☾ Qur’an-aware analysis</b><p>Verse-safe recognition is designed to fail safely rather than invent a reference.</p></article>
           <article><b>♡ Built for Somali &amp; Arabic</b><p>Language-specific analysis paths stay first-class instead of being translated into English first.</p></article>
         </div>
@@ -79,9 +79,9 @@
 
       <div class="screen" data-screen="1">
         <div class="panel-title"><span>2.</span><div><h2>AI Understanding</h2><p>Choose the language and analysis path from the AI Settings panel on the right.</p></div></div>
-        <div class="analysis-complete-card"><div class="analysis-heading"><b>Language-aware understanding</b><span>LOCAL</span></div><p>Garden of Jihan can prioritize Somali, Arabic, general multilingual speech, or the Qur’an-aware recognition path.</p><div class="metric-row"><div><strong>SO</strong><small>Somali native scoring</small></div><div><strong>AR</strong><small>Arabic semantic scoring</small></div><div><strong>EN</strong><small>English/general</small></div><div><strong>☾</strong><small>Qur’an-safe mode</small></div></div></div>
+        <div class="analysis-complete-card"><div class="analysis-heading"><b>Language-aware understanding</b><span>LOCAL</span></div><p>Garden of Jihan can prioritize Somali, Arabic, general multilingual speech, or the Qur’an-aware recognition path.</p><div class="metric-row"><div><strong>SO</strong><small>Somali-aware scoring</small></div><div><strong>AR</strong><small>Arabic-aware scoring</small></div><div><strong>EN</strong><small>English/general</small></div><div><strong>☾</strong><small>Qur’an-safe mode</small></div></div></div>
         <div id="modeNote" class="garden-note">Qur’an mode will never invent an ayah or reading when confidence is insufficient.</div>
-        <div class="feature-panels"><article><h3>Meaning first</h3><p>Hooks, emotion, curiosity, payoff, context completeness, and novelty are scored together.</p></article><article><h3>Signal fusion</h3><p>Audio energy and scene changes supplement transcript meaning rather than replacing it.</p></article></div>
+        <div class="feature-panels"><article><h3>Story structure</h3><p>Hooks, emotion, curiosity, payoff, completeness, density, and novelty are scored together.</p></article><article><h3>Signal fusion</h3><p>Audio energy and scene changes supplement transcript evidence rather than replacing it.</p></article></div>
       </div>
 
       <div class="screen" data-screen="2">
@@ -92,8 +92,13 @@
 
       <div class="screen" data-screen="3">
         <div class="panel-title"><span>4.</span><div><h2>AI Analysis</h2><p>Let the garden identify the moments most worth sharing.</p></div></div>
-        <button id="startAnalysis" class="primary analyze-hero">Start AI Analysis ✦<small>Find the moments that inspire</small></button>
-        <div class="progress-panel"><div class="progress-head"><span id="progressLabel">Ready</span><strong id="progressValue">0%</strong></div><div class="progress-track"><div id="progressBar" class="progress-fill"></div></div><ul class="progress-list"><li id="phase1">Prepare the source</li><li id="phase2">Understand speech</li><li id="phase3">Read audio &amp; visual momentum</li><li id="phase4">Rank distinct strong moments</li></ul></div>
+        <button id="startAnalysis" class="primary analyze-hero" aria-busy="false">Start AI Analysis ✦<small>Find the moments that inspire</small></button>
+        <div class="progress-panel">
+          <div class="progress-head"><span id="progressLabel">Ready</span><strong id="progressValue">0%</strong></div>
+          <div id="analysisGarden" class="analysis-garden" aria-hidden="true"><span class="garden-progress-sun"></span><div class="garden-progress-bed"><span id="growth1" class="growth-stage growth-a"><i></i><b>✿</b></span><span id="growth2" class="growth-stage growth-b"><i></i><b>❀</b></span><span id="growth3" class="growth-stage growth-c"><i></i><b>✾</b></span><span id="growth4" class="growth-stage growth-d"><i></i><b>❁</b></span></div></div>
+          <div id="progressTrack" class="progress-track" role="progressbar" aria-labelledby="progressLabel" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="progressBar" class="progress-fill"></div></div>
+          <ul class="progress-list"><li id="phase1">Prepare the source</li><li id="phase2">Understand speech</li><li id="phase3">Read audio &amp; visual momentum</li><li id="phase4">Rank distinct strong moments</li></ul>
+        </div>
         <div id="analysisError" class="notice error hidden" aria-live="polite"></div>
       </div>
 
@@ -124,13 +129,13 @@
         <label class="reference-upload" for="quranReferenceFile"><input id="quranReferenceFile" type="file" accept=".txt,.text,text/plain"><b>Install reviewed Tanzil 1.1 .txt</b><small>Keep the default Simple options and choose Text (with aya numbers). Garden of Jihan verifies all coordinates and a pinned SHA-256.</small></label>
         <div id="quranReferenceMessage" class="notice hidden" aria-live="polite"></div>
       </section>
-      <section class="setting-group"><h3>Viral Scoring Factors</h3><div class="score-factor"><span>Emotional Impact</span><b>30%</b><i style="--w:76%"></i></div><div class="score-factor"><span>Hook Strength</span><b>25%</b><i style="--w:67%"></i></div><div class="score-factor"><span>Context &amp; Payoff</span><b>20%</b><i style="--w:61%"></i></div><div class="score-factor"><span>Visual Momentum</span><b>15%</b><i style="--w:53%"></i></div></section>
+      <section class="setting-group"><h3>Base Ranking Mix</h3><div class="score-factor"><span>Hook &amp; curiosity</span><b>34%</b><i style="--w:34%"></i></div><div class="score-factor"><span>Payoff &amp; completeness</span><b>30%</b><i style="--w:30%"></i></div><div class="score-factor"><span>Emotion, density &amp; novelty</span><b>24%</b><i style="--w:24%"></i></div><div class="score-factor"><span>Audio, visual &amp; replay</span><b>12%</b><i style="--w:12%"></i></div><p class="scoring-note">General, Somali, and Arabic base weights. Qur’an mode uses a separate pause-and-completeness mix.</p></section>
       <section class="setting-group output-settings"><h3>Output Settings</h3><label>Format<select id="aspect"><option value="9:16">Vertical (9:16)</option><option value="16:9">Landscape (16:9)</option><option value="1:1">Square (1:1)</option></select></label><label>Min Clip Length<select id="minSeconds"><option value="15">15 seconds</option><option value="20" selected>20 seconds</option><option value="30">30 seconds</option></select></label><label>Max Clip Length<select id="maxSeconds"><option value="60">60 seconds</option><option value="75" selected>75 seconds</option><option value="90">90 seconds</option></select></label><label>Clip Count<select id="maxClips"><option>5</option><option selected>10</option><option>15</option><option>20</option></select></label></section>
       <div class="settings-foot"><span>100% local analysis</span><span>No telemetry by default</span></div>
     </aside>
   </main>
 
-  <div class="bottom-promises"><div><b>♙ 100% LOCAL</b><span>Your data stays on your device.</span></div><div><b>♢ PRIVATE &amp; SECURE</b><span>No cloud upload required.</span></div><div><b>☾ QUR’AN AWARE</b><span>Reference-backed safe path.</span></div><div><b>✦ ARABIC &amp; SOMALI AI</b><span>Native-language analysis.</span></div></div>
+  <div class="bottom-promises"><div><b>♙ 100% LOCAL</b><span>Your data stays on your device.</span></div><div><b>♢ PRIVATE &amp; SECURE</b><span>No cloud upload required.</span></div><div><b>☾ QUR’AN AWARE</b><span>Reference-backed safe path.</span></div><div><b>✦ ARABIC &amp; SOMALI AI</b><span>Language-aware local paths.</span></div></div>
 
   <script src="/static/app.js" defer></script>
   <script src="/static/quran-reference.js" defer></script>

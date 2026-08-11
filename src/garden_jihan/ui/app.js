@@ -17,24 +17,26 @@ function api(path, options={}) {
   if (options.body && !(options.body instanceof FormData)) headers.set('Content-Type','application/json');
   return fetch(path, {...options, headers});
 }
-function showStep(n){
+function showStep(n,{scroll=true}={}){
   step=Math.max(0,Math.min(5,n));
   screens.forEach((el,i)=>el.classList.toggle('active',i===step));
   stepButtons.forEach((el,i)=>{el.classList.toggle('active',i===step);el.classList.toggle('done',i<step)});
   stepCount.textContent=`Step ${step+1} of 6`;
   back.disabled=step===0;
   next.textContent=step===5?'Start over ↻':'Next →';
-  document.querySelector('.workspace').scrollIntoView({behavior:'smooth',block:'start'});
+  if(scroll)document.querySelector('.workspace').scrollIntoView({behavior:'smooth',block:'start'});
 }
 back.addEventListener('click',()=>showStep(step-1));
 next.addEventListener('click',()=>step===5?showStep(0):showStep(step+1));
 stepButtons.forEach(btn=>btn.addEventListener('click',()=>showStep(Number(btn.dataset.step))));
 
 const sourceMessage=document.getElementById('sourceMessage');
-document.getElementById('inspectSource').addEventListener('click', async()=>{
+const inspectSourceButton=document.getElementById('inspectSource');
+inspectSourceButton.addEventListener('click', async()=>{
   const url=document.getElementById('sourceUrl').value.trim();
   sourceMessage.classList.remove('hidden','error');
   sourceMessage.textContent='Checking source safely…';
+  inspectSourceButton.disabled=true;
   try{
     const res=await api('/api/source/inspect',{method:'POST',body:JSON.stringify({url})});
     const data=await res.json();
@@ -43,6 +45,7 @@ document.getElementById('inspectSource').addEventListener('click', async()=>{
     const duration=data.duration?` • ${Math.round(data.duration/60)} min`:'';
     sourceMessage.innerHTML=`<strong>Ready:</strong> ${escapeHtml(data.title || data.provider)}${duration}`;
   }catch(err){sourceMessage.classList.add('error');sourceMessage.textContent=err.message;}
+  finally{inspectSourceButton.disabled=false;}
 });
 
 const fileInput=document.getElementById('fileInput');
@@ -51,6 +54,7 @@ fileInput.addEventListener('change', async()=>{
   if(!fileInput.files.length)return;
   fileMessage.classList.remove('hidden','error');
   fileMessage.textContent='Copying video into an isolated local job…';
+  fileInput.disabled=true;
   const form=new FormData();form.append('file',fileInput.files[0]);
   try{
     const res=await api('/api/upload',{method:'POST',body:form});
@@ -59,25 +63,41 @@ fileInput.addEventListener('change', async()=>{
     source={url:null,uploadId:data.upload_id};
     fileMessage.innerHTML=`<strong>Ready:</strong> ${escapeHtml(fileInput.files[0].name)} • local only`;
   }catch(err){fileMessage.classList.add('error');fileMessage.textContent=err.message;}
+  finally{fileInput.disabled=false;}
 });
 
 function selectedMode(){return document.querySelector('input[name="mode"]:checked').value;}
 function setProgress(value,label){
-  document.getElementById('progressValue').textContent=`${value}%`;
-  document.getElementById('progressBar').style.width=`${value}%`;
+  const progress=Math.max(0,Math.min(100,Number(value)||0));
+  document.getElementById('progressValue').textContent=`${progress}%`;
+  document.getElementById('progressBar').style.width=`${progress}%`;
+  document.getElementById('progressTrack').setAttribute('aria-valuenow',String(progress));
+  document.getElementById('analysisGarden').style.setProperty('--growth',`${progress}%`);
   document.getElementById('progressLabel').textContent=label;
-  [['phase1',15],['phase2',38],['phase3',65],['phase4',90]].forEach(([id,threshold])=>document.getElementById(id).classList.toggle('done',value>=threshold));
+  [['phase1','growth1',15],['phase2','growth2',38],['phase3','growth3',65],['phase4','growth4',90]].forEach(([phaseId,growthId,threshold])=>{
+    document.getElementById(phaseId).classList.toggle('done',progress>=threshold);
+    document.getElementById(growthId).classList.toggle('grown',progress>=threshold);
+  });
 }
 
-document.getElementById('startAnalysis').addEventListener('click',async()=>{
+const startAnalysisButton=document.getElementById('startAnalysis');
+let analysisBusy=false;
+function setAnalysisBusy(busy){
+  analysisBusy=busy;
+  startAnalysisButton.disabled=busy;
+  startAnalysisButton.setAttribute('aria-busy',String(busy));
+}
+startAnalysisButton.addEventListener('click',async()=>{
+  if(analysisBusy)return;
   const error=document.getElementById('analysisError');error.classList.add('hidden');
   if(!source.url && !source.uploadId){error.textContent='Add a video first.';error.classList.remove('hidden');return;}
+  setAnalysisBusy(true);
   setProgress(4,'Creating secure job…');
   const body={url:source.url,upload_id:source.uploadId,mode:selectedMode(),min_clip_seconds:Number(document.getElementById('minSeconds').value),max_clip_seconds:Number(document.getElementById('maxSeconds').value),max_clips:Number(document.getElementById('maxClips').value)};
   try{
     const res=await api('/api/jobs/analyze',{method:'POST',body:JSON.stringify(body)});const data=await res.json();if(!res.ok)throw new Error(data.detail||'Could not start analysis');
     currentJob=data.job_id;pollJob();
-  }catch(err){error.textContent=err.message;error.classList.remove('hidden');}
+  }catch(err){setAnalysisBusy(false);error.textContent=err.message;error.classList.remove('hidden');}
 });
 async function pollJob(){
   try{
@@ -85,10 +105,10 @@ async function pollJob(){
     setProgress(data.progress,data.message);
     if(data.status==='failed')throw new Error(data.error||'Analysis failed');
     if(data.status==='complete'){
-      candidates=data.candidates||[];boundaries={};selected=new Set(candidates.filter(c=>c.score>=85).map(c=>c.id));renderCandidates();showStep(4);return;
+      setAnalysisBusy(false);candidates=data.candidates||[];boundaries={};selected=new Set(candidates.filter(c=>c.score>=85).map(c=>c.id));renderCandidates();showStep(4);return;
     }
     setTimeout(pollJob,900);
-  }catch(err){const box=document.getElementById('analysisError');box.textContent=err.message;box.classList.remove('hidden');}
+  }catch(err){setAnalysisBusy(false);const box=document.getElementById('analysisError');box.textContent=err.message;box.classList.remove('hidden');}
 }
 function quranMatchMarkup(match){
   if(!match)return '';
@@ -154,4 +174,4 @@ window.addEventListener('scroll',()=>{
 function scoreLabel(key){return ({hook:'Hook',emotion:'Emotion',curiosity:'Curiosity',payoff:'Payoff',completeness:'Complete',density:'Density',novelty:'Novelty',audio:'Audio',visual:'Visual',replay:'Replay'}[key]||key);}
 function formatTime(sec){sec=Math.max(0,Math.floor(sec));const m=Math.floor(sec/60);const s=sec%60;return `${m}:${String(s).padStart(2,'0')}`;}
 function escapeHtml(value){return String(value).replace(/[&<>'"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));}
-showStep(0);
+showStep(0,{scroll:false});
