@@ -73,9 +73,9 @@ foreach ($line in Get-Content -LiteralPath $manifest) {
   }
 }
 
-& $python -I -c "import sys; assert sys.flags.isolated == 1; import garden_jihan, fastapi, cv2, faster_whisper, fastembed; print(sys.version.split()[0])"
+& $python -I -B -c "import sys; assert sys.flags.isolated == 1; import garden_jihan, fastapi, cv2, faster_whisper, fastembed; print(sys.version.split()[0])"
 if ($LASTEXITCODE -ne 0) { throw "Portable Python runtime import check failed" }
-& $python -I -c "from pathlib import Path; from garden_jihan.analysis.quran import QuranReference; r=QuranReference(Path(r'$resolvedPackage\models\quran_reference.json')); assert r.available and len(r.records)==6236"
+& $python -I -B -c "from pathlib import Path; from garden_jihan.analysis.quran import QuranReference; r=QuranReference(Path(r'$resolvedPackage\models\quran_reference.json')); assert r.available and len(r.records)==6236"
 if ($LASTEXITCODE -ne 0) { throw "Portable Qur'an guide integrity check failed" }
 
 $launcherText = Get-Content -LiteralPath $launcher -Raw

@@ -9,6 +9,7 @@ if not exist "%~dp0app\garden_jihan\launcher.py" goto incomplete
 set "PYTHONHOME="
 set "PYTHONPATH="
 set "PYTHONNOUSERSITE=1"
+set "PYTHONDONTWRITEBYTECODE=1"
 set "GOJ_DISTRIBUTION=portable-browser"
 set "GOJ_SPEECH_MODEL_PATH=%~dp0models\speech"
 set "GOJ_MEANING_MODEL_PATH=%~dp0models\meaning"

@@ -42,16 +42,19 @@ def test_portable_launcher_is_offline_one_click_and_has_no_custom_executable():
     assert "runtime\\pythonw.exe" in launcher
     assert "app\\portable_start.pyw" in launcher
     assert "GOJ_DISTRIBUTION=portable-browser" in launcher
+    assert "PYTHONDONTWRITEBYTECODE=1" in launcher
     assert r"GOJ_SPEECH_MODEL_PATH=%~dp0models\speech" in launcher
     assert r"GOJ_MEANING_MODEL_PATH=%~dp0models\meaning" in launcher
     assert r"GOJ_QURAN_REFERENCE_PATH=%~dp0models\quran_reference.json" in launcher
     assert all(term not in launcher.lower() for term in ("http://", "https://", "curl.exe", "powershell"))
     assert "GardenOfJihan.exe" not in launcher
     assert "from garden_jihan.launcher import main as launch" in starter
+    assert "sys.dont_write_bytecode = True" in starter
     assert "portable folder is incomplete or" in starter
     assert "must not contain an unsigned custom GardenOfJihan.exe" in verifier
     assert r"models\quran_reference.json" in verifier
     assert "Portable Qur'an guide integrity check failed" in verifier
+    assert verifier.count('& $python -I -B -c') == 2
 
 
 def test_portable_handoff_is_private_and_cannot_publish_a_release():
