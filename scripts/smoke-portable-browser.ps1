@@ -65,6 +65,20 @@ try {
   if ($LASTEXITCODE -ne 0 -or ($homeMarkup -join "`n") -notmatch "Garden of Jihan") {
     throw "Portable browser UI did not load"
   }
+  if (
+    ($homeMarkup -join "`n") -notmatch 'id="progressClock"' -or
+    ($homeMarkup -join "`n") -notmatch "complete reviewed guide is included"
+  ) {
+    throw "Portable browser UI is missing the progress clock or included Qur'an guide"
+  }
+  $quran = Invoke-RestMethod -Uri "$origin/api/quran/reference" -TimeoutSec 5
+  if (
+    $quran.available -ne $true -or
+    $quran.verified -ne $true -or
+    [int]$quran.verses -ne 6236
+  ) {
+    throw "Portable browser did not load the complete verified Qur'an guide"
+  }
   $tokenMatch = [regex]::Match(($homeMarkup -join "`n"), '<meta name="goj-token" content="([^"]+)">')
   if (-not $tokenMatch.Success) { throw "Portable browser UI did not provide its local request token" }
   $headers = @{ "X-GOJ-Token" = $tokenMatch.Groups[1].Value; "Origin" = $origin }

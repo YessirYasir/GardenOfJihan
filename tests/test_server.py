@@ -146,6 +146,30 @@ def test_quran_reference_status_starts_unavailable(tmp_path):
         assert response.json()["verses"] == 0
 
 
+def test_bundled_quran_reference_fails_closed_and_cannot_be_replaced(
+    tmp_path,
+    monkeypatch,
+):
+    bundled = tmp_path / "package" / "quran_reference.json"
+    monkeypatch.setenv("GOJ_QURAN_REFERENCE_PATH", str(bundled))
+    settings = Settings(app_data=tmp_path / "user")
+    app = create_app(port=8765, settings=settings, session_token="test-token")
+    headers = {"origin": "http://127.0.0.1:8765", "x-goj-token": "test-token"}
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        status = client.get("/api/quran/reference")
+        replacement = client.post(
+            "/api/quran/reference",
+            headers=headers,
+            files={"file": ("quran.txt", b"replacement", "text/plain")},
+        )
+
+    assert settings.active_quran_reference == bundled.resolve()
+    assert status.json()["available"] is False
+    assert replacement.status_code == 409
+    assert "already included" in replacement.json()["detail"]
+
+
 def test_quran_reference_status_never_exposes_integrity_exception_text(
     tmp_path,
     monkeypatch,

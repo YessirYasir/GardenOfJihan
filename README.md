@@ -27,7 +27,7 @@ Build it on Windows with Python 3.12 available to the build process:
 
 The resulting handoff is `dist\GardenOfJihan-Portable-Browser-Windows-x64.zip`. Public distribution continues to require the trusted Authenticode-gated application release.
 
-The first AI analysis downloads the local Whisper model and multilingual meaning model once and caches them on that PC. Video analysis and rendering then run locally. If the meaning model is unavailable, the UI reports its base-ranking fallback; it never uploads transcripts to a paid or cloud fallback.
+The private portable and Windows packages include checksum-verified speech and multilingual meaning resources, so the first analysis does not pause for a model download. Video analysis and rendering run locally. Source-development runs may populate a local cache when those resources are not packaged. If the meaning model is unavailable, the UI reports its base-ranking fallback; it never uploads transcripts to a paid or cloud fallback.
 
 The project is designed around four principles:
 

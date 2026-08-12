@@ -1,3 +1,4 @@
+from garden_jihan.analysis import signals as signals_module
 from garden_jihan.analysis.scoring import build_candidates, score_text_detailed
 from garden_jihan.analysis.signals import MediaSignals, TimedValue
 from garden_jihan.analysis.transcription import TranscriptSegment
@@ -54,3 +55,57 @@ def test_signal_profile_averages_window_values():
     assert profile.audio_for(0, 20) == 0.5
     assert profile.replay_for(2, 12) == 0.75
     assert profile.scene_density_for(0, 20) is not None
+
+
+def test_media_signal_surveys_are_combined(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        signals_module,
+        "extract_audio_energy",
+        lambda _path: [TimedValue(0, 2, 0.8)],
+    )
+    monkeypatch.setattr(signals_module, "extract_scene_times", lambda _path: [1.0, 3.0])
+
+    result = signals_module.build_media_signals(tmp_path / "video.mp4")
+
+    assert result.audio_energy[0].value == 0.8
+    assert result.scene_times == [1.0, 3.0]
+
+
+def test_somali_story_phrases_raise_story_signal_and_create_verbatim_titles():
+    story = (
+        "Tusaale ahaan, maalin ayaa nin safar galay. Markii uu soo noqday wuxuu ogaaday "
+        "xaqiiqda, ugu dambaynna casharka waa in sabirku muhiim yahay."
+    )
+    filler = "Wax kale ayaa jira oo hadalka ku jira waana arrin caadi ah oo la sheegayo."
+
+    story_score, story_reasons, breakdown = score_text_detailed(
+        story,
+        AnalysisMode.SOMALI,
+        30,
+    )
+    filler_score, _, _ = score_text_detailed(filler, AnalysisMode.SOMALI, 30)
+    candidates = build_candidates(
+        [TranscriptSegment(0, 30, story)],
+        AnalysisMode.SOMALI,
+        20,
+        60,
+        1,
+    )
+
+    assert story_score > filler_score
+    assert breakdown["story"] >= 62
+    assert any("story or example" in reason for reason in story_reasons)
+    assert candidates[0].title != "Strong moment"
+    assert candidates[0].title.rstrip("…") in story
+
+
+def test_somali_title_fails_cleanly_when_speech_is_mislabeled_as_arabic():
+    candidates = build_candidates(
+        [TranscriptSegment(125, 150, "هذا نص عربي غير موثوق للعنوان")],
+        AnalysisMode.SOMALI,
+        20,
+        60,
+        1,
+    )
+
+    assert candidates[0].title == "Moment at 2:05"

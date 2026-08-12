@@ -176,11 +176,16 @@ def create_app(
 
     @app.get("/api/quran/reference")
     async def quran_reference_status():
-        reference = QuranReference(settings.quran_reference)
+        reference = QuranReference(settings.active_quran_reference)
         return _quran_reference_status(reference)
 
     @app.post("/api/quran/reference")
     async def install_quran_reference(file: Annotated[UploadFile, File()]):
+        if settings.bundled_quran_reference is not None:
+            raise HTTPException(
+                status_code=409,
+                detail="The reviewed Qur’an guide is already included with Garden of Jihan",
+            )
         suffix = Path(file.filename or "").suffix.lower()
         if suffix not in {".txt", ".text"}:
             raise HTTPException(status_code=415, detail="Choose the official Tanzil UTF-8 text file")

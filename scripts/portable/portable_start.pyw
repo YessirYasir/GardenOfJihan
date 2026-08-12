@@ -5,6 +5,8 @@ import sys
 import traceback
 from pathlib import Path
 
+sys.dont_write_bytecode = True
+
 
 def _diagnostic_path() -> Path:
     local_app_data = os.getenv("LOCALAPPDATA")

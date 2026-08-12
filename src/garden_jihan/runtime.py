@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -15,6 +16,12 @@ def bundled_root() -> Path:
 def find_tool(name: str) -> str:
     """Resolve a bundled media binary first, then fall back to PATH."""
     executable = f"{name}.exe" if sys.platform == "win32" else name
+    configured = os.getenv(f"GOJ_{name.upper()}_PATH", "").strip()
+    if configured:
+        configured_path = Path(configured).expanduser().resolve()
+        if configured_path.is_file():
+            return str(configured_path)
+        raise RuntimeError(f"Configured {name} program was not found")
     candidates = [
         bundled_root() / "bin" / executable,
         Path(sys.executable).resolve().parent / "bin" / executable,

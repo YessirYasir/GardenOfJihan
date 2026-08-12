@@ -169,6 +169,18 @@ function setProgress(value,label){
   });
 }
 
+function clockTime(seconds){
+  const total=Math.max(0,Math.round(Number(seconds)||0));
+  const minutes=Math.floor(total/60);const remainder=total%60;
+  return `${String(minutes).padStart(2,'0')}:${String(remainder).padStart(2,'0')}`;
+}
+function updateProgressClock(elapsed,eta,status='running'){
+  const clock=document.getElementById('progressClock');
+  if(status==='complete'){clock.textContent=`Finished in ${clockTime(elapsed)}`;return;}
+  if(status==='failed'){clock.textContent=`Stopped after ${clockTime(elapsed)}`;return;}
+  clock.textContent=eta?`${clockTime(elapsed)} elapsed • about ${clockTime(eta)} left`:`${clockTime(elapsed)} elapsed • working normally`;
+}
+
 const startAnalysisButton=document.getElementById('startAnalysis');
 let analysisBusy=false;
 function setAnalysisBusy(busy){
@@ -182,6 +194,7 @@ startAnalysisButton.addEventListener('click',async()=>{
   if(!source.url && !source.uploadId){error.textContent='Add a video first.';error.classList.remove('hidden');return;}
   setAnalysisBusy(true);
   setProgress(4,'Planting the first seeds…');
+  updateProgressClock(0,null);
   const body={url:source.url,upload_id:source.uploadId,mode:selectedMode(),min_clip_seconds:Number(document.getElementById('minSeconds').value),max_clip_seconds:Number(document.getElementById('maxSeconds').value),max_clips:Number(document.getElementById('maxClips').value),project_name:source.name||null};
   try{
     const res=await api('/api/jobs/analyze',{method:'POST',body:JSON.stringify(body)});const data=await res.json();if(!res.ok)throw new Error(data.detail||'The garden could not begin');
@@ -192,6 +205,7 @@ async function pollJob(){
   try{
     const res=await api(`/api/jobs/${currentJob}`);const data=await res.json();if(!res.ok)throw new Error(data.detail||'The garden paused unexpectedly');
     const progress=Number(data.progress)||0;const friendlyLabel=progress<20?'Preparing your video…':progress<48?'Listening for meaning…':progress<72?'Noticing rhythm and movement…':progress<96?'Gathering strong moments…':'Your moments are ready';setProgress(progress,friendlyLabel);
+    updateProgressClock(data.elapsed_seconds,data.eta_seconds,data.status);
     if(data.status==='failed')throw new Error('The garden could not finish this video. Please try again.');
     if(data.status==='complete'){
       setAnalysisBusy(false);restoreProject(data,{defaultStrong:true});queueProjectSave();return;
@@ -253,7 +267,7 @@ function renderCandidates(){
     grid.appendChild(card);
   });syncExportSummary();
 }
-document.getElementById('selectStrong').addEventListener('click',()=>{selected=new Set(candidates.filter(c=>c.score>=85).map(c=>c.id));renderCandidates();queueProjectSave();});
+document.getElementById('selectStrong').addEventListener('click',()=>{const strong=candidates.filter(c=>c.score>=85);selected=new Set((strong.length?strong:candidates.slice(0,3)).map(c=>c.id));renderCandidates();queueProjectSave();});
 function syncCaptionControls(){
   const captionMode=document.getElementById('captions').value;const enabled=captionMode!=='off';
   document.getElementById('captionStyle').disabled=!enabled;
@@ -345,7 +359,7 @@ window.addEventListener('scroll',()=>{
   document.querySelector('.hill-back').style.transform=`translateY(${y*.025}px)`;
   document.querySelector('.hill-front').style.transform=`translateY(${y*.05}px)`;
 });
-function scoreLabel(key){return ({hook:'Hook',emotion:'Emotion',curiosity:'Curiosity',payoff:'Payoff',completeness:'Complete',density:'Density',novelty:'Novelty',audio:'Audio',visual:'Visual',replay:'Replay',semantic_coherence:'Topic coherence'}[key]||key);}
+function scoreLabel(key){return ({hook:'Opening',emotion:'Feeling',curiosity:'Curiosity',payoff:'Payoff',completeness:'Complete',density:'Richness',novelty:'Freshness',story:'Story',audio:'Voice',visual:'Movement',replay:'Rewatched',semantic_coherence:'Story flow',relative_strength:'Compared here'}[key]||key);}
 function formatTime(sec){sec=Math.max(0,Math.floor(sec));const m=Math.floor(sec/60);const s=sec%60;return `${m}:${String(s).padStart(2,'0')}`;}
 function escapeHtml(value){return String(value).replace(/[&<>'"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));}
 showStep(0,{scroll:false});

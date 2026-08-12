@@ -98,7 +98,7 @@
         <div class="panel-title"><span>4.</span><div><h2>Find Your Moments</h2><p>Let the garden discover the moments most worth sharing.</p></div></div>
         <button id="startAnalysis" class="primary analyze-hero" aria-busy="false">Find My Moments ✦<small>Discover the moments that inspire</small></button>
         <div class="progress-panel">
-          <div class="progress-head"><span id="progressLabel">Ready</span><strong id="progressValue">0%</strong></div>
+          <div class="progress-head"><span><b id="progressLabel">Ready</b><small id="progressClock" aria-live="polite">00:00 elapsed</small></span><strong id="progressValue">0%</strong></div>
           <div id="analysisGarden" class="analysis-garden" aria-hidden="true"><span class="garden-progress-sun"></span><div class="garden-progress-bed"><span id="growth1" class="growth-stage growth-a"><i></i><b>✿</b></span><span id="growth2" class="growth-stage growth-b"><i></i><b>❀</b></span><span id="growth3" class="growth-stage growth-c"><i></i><b>✾</b></span><span id="growth4" class="growth-stage growth-d"><i></i><b>❁</b></span></div></div>
           <div id="progressTrack" class="progress-track" role="progressbar" aria-labelledby="progressLabel" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="progressBar" class="progress-fill"></div></div>
           <ul class="progress-list"><li id="phase1">Welcome your video</li><li id="phase2">Listen for meaning</li><li id="phase3">Notice rhythm and movement</li><li id="phase4">Gather the strongest moments</li></ul>
@@ -137,10 +137,7 @@
       <section class="setting-group"><h3>Language Priority</h3><label class="toggle-row"><span>◎ Auto detect</span><input type="radio" name="mode" value="auto" checked></label><label class="toggle-row"><span>★ Somali</span><input type="radio" name="mode" value="somali"></label><label class="toggle-row"><span>ع Arabic</span><input type="radio" name="mode" value="arabic"></label><label class="toggle-row"><span>☾ Qur’an</span><input type="radio" name="mode" value="quran"></label></section>
       <section class="setting-group quran-reference-group">
         <h3>Qur’an Guide</h3>
-        <div id="quranReferenceStatus" class="reference-status checking"><span></span><div><b>Checking the trusted Qur’an guide…</b><small>Surah and Ayah stay hidden until the complete reviewed guide is accepted.</small></div></div>
-        <a class="reference-source" href="https://tanzil.net/download/" target="_blank" rel="noreferrer">Get the trusted Qur’an text ↗</a>
-        <label class="reference-upload" for="quranReferenceFile"><input id="quranReferenceFile" type="file" accept=".txt,.text,text/plain"><b>Choose reviewed Qur’an text</b><small>Use the Tanzil Simple text with Ayah numbers. Until it is accepted, Garden will not name a Surah or Ayah.</small></label>
-        <div id="quranReferenceMessage" class="notice hidden" aria-live="polite"></div>
+        <div id="quranReferenceStatus" class="reference-status checking"><span></span><div><b>Checking the trusted Qur’an guide…</b><small>The complete reviewed guide is included inside Garden of Jihan.</small></div></div>
       </section>
       <section class="setting-group"><h3>What Makes a Moment Shine</h3><div class="score-factor"><span>Opening &amp; curiosity</span><b>34%</b><i style="--w:34%"></i></div><div class="score-factor"><span>Meaning &amp; completeness</span><b>30%</b><i style="--w:30%"></i></div><div class="score-factor"><span>Feeling &amp; freshness</span><b>24%</b><i style="--w:24%"></i></div><div class="score-factor"><span>Voice &amp; movement</span><b>12%</b><i style="--w:12%"></i></div><p class="scoring-note">Qur’an mode follows a separate, careful path built around pauses and complete recitation.</p></section>
       <section class="setting-group output-settings"><h3>Clip Style</h3><label>Shape<select id="aspect"><option value="9:16">Vertical (9:16)</option><option value="16:9">Landscape (16:9)</option><option value="1:1">Square (1:1)</option></select></label><label>Shortest Clip<select id="minSeconds"><option value="15">15 seconds</option><option value="20" selected>20 seconds</option><option value="30">30 seconds</option></select></label><label>Longest Clip<select id="maxSeconds"><option value="60">60 seconds</option><option value="75" selected>75 seconds</option><option value="90">90 seconds</option></select></label><label>Number of Clips<select id="maxClips"><option>5</option><option selected>10</option><option>15</option><option>20</option></select></label></section>
@@ -158,7 +155,7 @@
       <p id="welcomeDescription">Turn a long video into thoughtful, ready-to-share short clips while your footage stays on this computer.</p>
       <div class="welcome-steps">
         <article><span>1</span><div><b>Add your video</b><small>Choose a file from this computer or paste a supported link.</small></div></article>
-        <article><span>2</span><div><b>Let the garden listen</b><small>The first visit may take a few minutes while the garden prepares itself. Later visits begin more quickly.</small></div></article>
+        <article><span>2</span><div><b>Let the garden listen</b><small>Your private garden is ready as soon as it opens, with clear progress while it listens.</small></div></article>
         <article><span>3</span><div><b>Keep and share</b><small>Preview the strongest moments, refine the timing, and create clean clips.</small></div></article>
       </div>
       <div class="welcome-trust"><span>⌁ Your video stays here</span><span>♢ No subscription</span><span>✦ No usage limit</span></div>

@@ -72,6 +72,17 @@ Write-Host "Building Garden of Jihan..."
   --add-binary "$toolsDir\ffprobe.exe;bin" `
   src/garden_jihan/launcher.py
 
+Write-Host "Including checksum-verified speech and meaning resources for a fast first analysis..."
+& $PythonExecutable "scripts\prepare-offline-models.py" `
+  --destination "dist\GardenOfJihan\models" `
+  --cache (Join-Path $toolsRoot "model-cache")
+if ($LASTEXITCODE -ne 0) { throw "Verified offline resource preparation failed" }
+
+& $PythonExecutable "scripts\prepare-quran-reference.py" `
+  --destination "dist\GardenOfJihan\models\quran_reference.json" `
+  --cache (Join-Path $toolsRoot "quran-reference")
+if ($LASTEXITCODE -ne 0) { throw "Verified Qur'an reference preparation failed" }
+
 $readme = @"
 Garden of Jihan — Windows Release Package
 
@@ -83,17 +94,17 @@ GET STARTED
 5. Choose the analysis mode and clip settings, then click Find the best moments.
 6. Preview, adjust, keep, and export your clips.
 
-FIRST AI ANALYSIS
-The first analysis downloads the local Whisper speech model and multilingual meaning model once and caches them on this PC. This can take a few minutes depending on the internet connection. Later analyses reuse the cached models. If the meaning model is unavailable, Garden of Jihan reports that it used base ranking and never sends transcript text to a paid or cloud fallback.
+FIRST USE
+Everything needed to find moments is already included. A visible clock shows how long the current video has been processing and the estimated time remaining.
 
 PRIVACY
-Garden of Jihan binds only to 127.0.0.1. Video processing happens on this PC. FFmpeg and ffprobe are bundled. There is no paid AI API key, subscription, credits, token balance, or telemetry requirement. Optional publishing sends only the explicitly chosen export and metadata through an official platform API. YouTube OAuth material is encrypted for the current Windows user; production OAuth credentials are not embedded in this unsigned internal build.
+Video processing stays on this PC. No account, subscription, credits, or payment is required. Only a finished video that you explicitly choose to publish can leave the private garden.
 
 TRUST AND VERIFICATION
-Official releases are built by GitHub Actions from the public source repository. Each release includes a SHA256 checksum and GitHub build-provenance attestation. The release pipeline also runs Microsoft Defender Antivirus against the packaged application before publishing.
+Official releases include a matching authenticity fingerprint and trusted Windows signature, and are scanned by Microsoft Defender before publication.
 
 WINDOWS SIGNING
-Never distribute an unsigned GardenOfJihan.exe as a public release. The public release workflows inspect the executable inside the exact ZIP, require a valid trusted Authenticode signature, and block publication when the signature is missing or invalid. Only download releases from the official YessirYasir/GardenOfJihan repository.
+Never distribute GardenOfJihan.exe publicly unless Windows identifies its trusted publisher. Only download releases from the official Garden of Jihan release page.
 
 Important: Process and republish only media you have permission to use.
 "@

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 import threading
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -157,26 +158,32 @@ class LocalSemanticRanker:
                         dim=SEMANTIC_DIMENSIONS,
                         model_file="onnx/model_O4.onnx",
                     )
-            self.cache_dir.mkdir(parents=True, exist_ok=True)
-            try:
-                model_dir = Path(
-                    snapshot_download(
-                        repo_id=self.model_name,
-                        revision=SEMANTIC_MODEL_REVISION,
-                        allow_patterns=list(SEMANTIC_MODEL_FILES),
-                        cache_dir=str(self.cache_dir),
-                        local_files_only=True,
+            bundled = os.getenv("GOJ_MEANING_MODEL_PATH", "").strip()
+            if bundled:
+                model_dir = Path(bundled).expanduser().resolve()
+                if not model_dir.is_dir():
+                    raise ValueError("Included meaning resources are missing")
+            else:
+                self.cache_dir.mkdir(parents=True, exist_ok=True)
+                try:
+                    model_dir = Path(
+                        snapshot_download(
+                            repo_id=self.model_name,
+                            revision=SEMANTIC_MODEL_REVISION,
+                            allow_patterns=list(SEMANTIC_MODEL_FILES),
+                            cache_dir=str(self.cache_dir),
+                            local_files_only=True,
+                        )
                     )
-                )
-            except Exception:
-                model_dir = Path(
-                    snapshot_download(
-                        repo_id=self.model_name,
-                        revision=SEMANTIC_MODEL_REVISION,
-                        allow_patterns=list(SEMANTIC_MODEL_FILES),
-                        cache_dir=str(self.cache_dir),
+                except Exception:
+                    model_dir = Path(
+                        snapshot_download(
+                            repo_id=self.model_name,
+                            revision=SEMANTIC_MODEL_REVISION,
+                            allow_patterns=list(SEMANTIC_MODEL_FILES),
+                            cache_dir=str(self.cache_dir),
+                        )
                     )
-                )
             for relative_path, trusted_sha256 in SEMANTIC_MODEL_FILES.items():
                 model_path = model_dir / relative_path
                 if not model_path.is_file():

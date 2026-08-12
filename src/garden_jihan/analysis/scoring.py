@@ -53,6 +53,36 @@ PAYOFF = {
     "somali": {"sidaas", "sidaa", "natiijo", "jawaab", "cashar", "ugu", "dambayn", "micnaha"},
     "arabic": {"لذلك", "إذن", "اذن", "النتيجة", "الجواب", "العبرة", "أخيرا", "اخيرا", "المعنى"},
 }
+STORY = {
+    "general": {
+        "story", "once", "when", "then", "after", "before", "remember", "example",
+        "imagine", "person", "man", "woman", "family", "learned", "happened",
+    },
+    "somali": {
+        "sheeko", "mar", "maalin", "markii", "markaas", "dabadeed", "kadib", "kahor",
+        "tusaale", "qof", "nin", "naag", "qoys", "wuxuu", "waxay", "dhacay", "bartay",
+        "xusuus", "bal", "ogaaday",
+    },
+    "arabic": {
+        "قصة", "مرة", "يوم", "عندما", "ثم", "بعد", "قبل", "مثال", "رجل", "امرأة",
+        "شخص", "أسرة", "حدث", "تعلم", "تذكر", "تخيل",
+    },
+}
+KEY_PHRASES = {
+    "general": (
+        "the important thing", "here is why", "for example", "what happened next",
+        "the lesson is", "this means", "the real reason", "in the end",
+    ),
+    "somali": (
+        "waxaa muhiim ah", "arrinta muhiimka", "sababta oo ah", "tusaale ahaan",
+        "taas macnaheedu", "waxa dhacay", "markii uu", "markii ay", "ugu dambayn",
+        "casharka waa", "bal ka warran", "xaqiiqdu waa",
+    ),
+    "arabic": (
+        "المهم هو", "والسبب هو", "على سبيل المثال", "ماذا حدث", "هذا يعني",
+        "العبرة هي", "في النهاية", "الحقيقة هي",
+    ),
+}
 STOPWORDS = {
     "general": {"the", "a", "an", "and", "or", "to", "of", "in", "it", "is", "that", "this"},
     "somali": {"oo", "iyo", "waa", "in", "ay", "uu", "ka", "ku", "la", "si", "ah"},
@@ -69,6 +99,7 @@ class ScoreBreakdown:
     completeness: float = 0.0
     density: float = 0.0
     novelty: float = 0.0
+    story: float = 0.0
     audio: float = 0.0
     visual: float = 0.0
     replay: float = 0.0
@@ -139,6 +170,11 @@ def score_text_detailed(
     emotions = _lexicon_hits(tokens, EMOTION.get(key, set()))
     contrasts = _lexicon_hits(tokens, CONTRAST.get(key, set()))
     payoffs = _lexicon_hits(final, PAYOFF.get(key, set()))
+    story_hits = _lexicon_hits(tokens, STORY.get(key, set()))
+    normalized_text = " ".join(tokens)
+    phrase_hits = sum(
+        1 for phrase in KEY_PHRASES.get(key, ()) if phrase in normalized_text
+    )
     questions = text.count("?") + text.count("؟")
     exclamations = text.count("!")
 
@@ -159,6 +195,13 @@ def score_text_detailed(
     completeness_score = _clamp(36 + complete * 40 + punctuation * 18)
     density_score = _clamp(25 + density * 65)
     novelty_score = _clamp(35 + lexical_variety * 60 - repetition_ratio * 90)
+    story_score = _clamp(
+        16
+        + min(story_hits, 7) * 8
+        + min(phrase_hits, 3) * 13
+        + min(contrasts, 2) * 7
+        + min(payoffs, 2) * 8
+    )
 
     breakdown = ScoreBreakdown(
         hook=hook_score,
@@ -168,6 +211,7 @@ def score_text_detailed(
         completeness=completeness_score,
         density=density_score,
         novelty=novelty_score,
+        story=story_score,
         audio=_clamp((audio_signal or 0.0) * 100),
         visual=_clamp((scene_signal or 0.0) * 100),
         replay=_clamp((replay_signal or 0.0) * 100),
@@ -191,17 +235,19 @@ def score_text_detailed(
 
     score = (
         hook_score * 0.20
-        + emotion_score * 0.10
-        + curiosity_score * 0.14
-        + payoff_score * 0.16
-        + completeness_score * 0.14
+        + emotion_score * 0.08
+        + curiosity_score * 0.12
+        + payoff_score * 0.13
+        + completeness_score * 0.13
         + density_score * 0.08
-        + novelty_score * 0.06
+        + novelty_score * 0.05
+        + story_score * 0.08
         + breakdown.audio * 0.05
-        + breakdown.visual * 0.025
-        + breakdown.replay * 0.045
+        + breakdown.visual * 0.03
+        + breakdown.replay * 0.05
     )
     score += min(6.0, hooks * 0.8 + emotions * 0.5 + questions * 0.7 + contrasts * 0.4)
+    score += min(5.0, story_hits * 0.6 + phrase_hits * 1.5)
 
     reasons: list[str] = []
     if hook_score >= 67:
@@ -224,6 +270,10 @@ def score_text_detailed(
         reasons.append("High information density with little verbal dead space")
     if novelty_score >= 75:
         reasons.append("Varied wording reduces repetitive filler")
+    if story_score >= 62:
+        reasons.append("Tells a story or example with a clear turn")
+    elif phrase_hits:
+        reasons.append("A key phrase brings the main idea into focus")
 
     return round(_clamp(score), 1), reasons[:6] or ["Complete, self-contained candidate"], breakdown.as_dict()
 
@@ -268,7 +318,7 @@ def _rerank_semantic_shortlist(
         if profile.coherence >= 70:
             window.reasons = [
                 *window.reasons,
-                "Local multilingual embeddings support topic coherence",
+                "Ideas stay focused from beginning to end",
             ][:6]
 
     selected: list[int] = []
@@ -288,6 +338,57 @@ def _rerank_semantic_shortlist(
         selected.append(best)
         remaining.remove(best)
     return [shortlist[index] for index in selected]
+
+
+def _moment_title(
+    segment_texts: list[str],
+    mode: AnalysisMode,
+    start: float,
+) -> str:
+    key = _language_key(mode)
+
+    def phrase_strength(text: str) -> tuple[int, int]:
+        tokens = _tokens(text, key)
+        content = _content_tokens(tokens, key)
+        signal = (
+            _lexicon_hits(tokens, HOOKS.get(key, set())) * 3
+            + _lexicon_hits(tokens, STORY.get(key, set())) * 2
+            + _lexicon_hits(tokens, PAYOFF.get(key, set())) * 2
+            + sum(3 for phrase in KEY_PHRASES.get(key, ()) if phrase in " ".join(tokens))
+        )
+        return signal, min(len(content), 12)
+
+    meaningful = [text.strip() for text in segment_texts if len(_tokens(text, key)) >= 3]
+    if not meaningful:
+        return "Strong moment"
+    phrase = max(meaningful, key=phrase_strength)
+    words = phrase.split()
+    title = " ".join(words[:9]).strip(" .,:;!?؟")
+    if len(words) > 9:
+        title += "…"
+    if mode == AnalysisMode.SOMALI:
+        arabic_letters = len(re.findall(r"[\u0600-\u06ff]", title))
+        latin_letters = len(re.findall(r"[A-Za-z]", title))
+        if arabic_letters > max(4, latin_letters):
+            minutes, seconds = divmod(max(0, round(start)), 60)
+            return f"Moment at {minutes}:{seconds:02d}"
+    return title[:72] or "Strong moment"
+
+
+def _apply_relative_strength(windows: list[ScoredWindow]) -> None:
+    if not windows:
+        return
+    values = sorted(window.score for window in windows)
+    for window in windows:
+        if len(values) == 1:
+            percentile = 50.0
+        else:
+            below = sum(value < window.score for value in values)
+            equal = sum(value == window.score for value in values)
+            percentile = (below + (equal - 1) / 2) / (len(values) - 1) * 100
+        relative_strength = round(50 + percentile * 0.5, 1)
+        window.breakdown["relative_strength"] = relative_strength
+        window.score = round(_clamp(window.score + relative_strength * 0.5), 1)
 
 
 def build_candidates(
@@ -362,13 +463,18 @@ def build_candidates(
                 max_clips,
             )
 
+    _apply_relative_strength(chosen)
     return [
         ClipCandidate(
             id=uuid.uuid4().hex[:12],
             start=window.start,
             end=window.end,
             score=window.score,
-            title=("Qur'an passage" if mode == AnalysisMode.QURAN else "Strong moment"),
+            title=(
+                "Qur'an passage"
+                if mode == AnalysisMode.QURAN
+                else _moment_title(window.segment_texts, mode, window.start)
+            ),
             reasons=window.reasons,
             transcript=window.text,
             mode=mode,

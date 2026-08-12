@@ -60,6 +60,17 @@ try {
   if ($LASTEXITCODE -ne 0 -or ($homeMarkup -join "`n") -notmatch "Garden of Jihan") {
     throw "Packaged UI did not load."
   }
+  if (($homeMarkup -join "`n") -notmatch 'id="progressClock"') {
+    throw "Packaged UI did not include the analysis clock."
+  }
+  $quran = Invoke-RestMethod -Uri "$origin/api/quran/reference" -TimeoutSec 5
+  if (
+    $quran.available -ne $true -or
+    $quran.verified -ne $true -or
+    [int]$quran.verses -ne 6236
+  ) {
+    throw "Packaged application did not load the complete verified Qur'an guide."
+  }
   $tokenMatch = [regex]::Match(
     ($homeMarkup -join "`n"),
     '<meta name="goj-token" content="([^"]+)">'

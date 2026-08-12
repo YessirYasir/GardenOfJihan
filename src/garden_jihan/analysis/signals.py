@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 import re
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -120,7 +121,10 @@ def extract_scene_times(path: Path, threshold: float = 0.32) -> list[float]:
         str(path),
         "-an",
         "-vf",
-        f"select='gt(scene,{threshold})',showinfo",
+        # Story ranking needs the pattern of visual changes, not every full-size
+        # frame. Sampling one small frame every two seconds keeps that signal while making
+        # hour-long lectures substantially faster to scan.
+        f"fps=0.5,scale=320:-2:flags=fast_bilinear,select='gt(scene,{threshold})',showinfo",
         "-vsync",
         "vfr",
         "-f",
@@ -148,7 +152,9 @@ def extract_scene_times(path: Path, threshold: float = 0.32) -> list[float]:
 
 
 def build_media_signals(path: Path) -> MediaSignals:
-    return MediaSignals(
-        audio_energy=extract_audio_energy(path),
-        scene_times=extract_scene_times(path),
-    )
+    # Audio and video surveys are independent decoder passes. Running them
+    # together keeps a full-hour lecture inside the one-minute experience.
+    with ThreadPoolExecutor(max_workers=2, thread_name_prefix="goj-signals") as pool:
+        audio = pool.submit(extract_audio_energy, path)
+        scenes = pool.submit(extract_scene_times, path)
+        return MediaSignals(audio_energy=audio.result(), scene_times=scenes.result())

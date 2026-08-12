@@ -1,5 +1,5 @@
 $ErrorActionPreference = "Stop"
 pytest
 ruff check .
-bandit -q -r src
+bandit -q -r src -ll
 pip-audit
