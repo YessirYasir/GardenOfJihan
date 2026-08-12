@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 import json
+import logging
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -43,6 +44,7 @@ from garden_jihan.security import LocalSecurityMiddleware, new_session_token, sa
 ALLOWED_UPLOAD_EXTENSIONS = {".mp4", ".mov", ".mkv", ".webm", ".m4v"}
 MAX_QURAN_REFERENCE_BYTES = 8 * 1024 * 1024
 MAX_OAUTH_CLIENT_BYTES = 64 * 1024
+LOGGER = logging.getLogger(__name__)
 
 
 def _quran_reference_status(reference: QuranReference) -> dict:
@@ -108,10 +110,12 @@ def create_app(
             )
         try:
             app.state.youtube_publisher.complete_authorization(state, code)
-        except (OSError, RuntimeError, YouTubePublishingError) as exc:
-            safe_error = html.escape(str(exc))
+        except (OSError, RuntimeError, YouTubePublishingError):
+            LOGGER.warning("YouTube OAuth callback failed", exc_info=True)
             return HTMLResponse(
-                f"<h1>YouTube was not connected</h1><p>{safe_error}</p>"
+                "<h1>YouTube was not connected</h1>"
+                "<p>Google authorization could not be completed. Return to Garden of Jihan "
+                "and try again.</p>"
                 "<p>You can close this tab and return to Garden of Jihan.</p>",
                 status_code=400,
             )

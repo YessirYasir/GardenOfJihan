@@ -129,6 +129,31 @@ def test_quran_reference_status_starts_unavailable(tmp_path):
         assert response.json()["verses"] == 0
 
 
+def test_quran_reference_status_never_exposes_integrity_exception_text(
+    tmp_path,
+    monkeypatch,
+):
+    settings = Settings(app_data=tmp_path)
+    settings.quran_reference.parent.mkdir(parents=True, exist_ok=True)
+    settings.quran_reference.write_text("{}", encoding="utf-8")
+    private_detail = "private parser detail C:\\Users\\person\\secret.txt"
+
+    def fail_validation(*_args, **_kwargs):
+        raise ValueError(private_detail)
+
+    monkeypatch.setattr(quran_module.QuranReference, "_load_verified_package", fail_validation)
+    app = create_app(port=8765, settings=settings, session_token="test-token")
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        response = client.get("/api/quran/reference")
+
+    assert response.status_code == 200
+    assert response.json()["validation_error"] == (
+        "Installed reference failed integrity validation. "
+        "Reinstall the exact reviewed Tanzil profile."
+    )
+    assert private_detail not in response.text
+
+
 def test_quran_reference_install_requires_complete_reference(tmp_path):
     settings = Settings(app_data=tmp_path)
     app = create_app(port=8765, settings=settings, session_token="test-token")
@@ -551,6 +576,27 @@ def test_youtube_connect_uses_loopback_and_callback_state_handler(tmp_path, monk
     assert captured["state"] == "safe-state"
     assert captured["code"] == "safe-code"
     assert "upload-only permission" in callback.text
+
+
+def test_youtube_callback_never_exposes_internal_exception_text(tmp_path, monkeypatch):
+    settings = Settings(app_data=tmp_path)
+    app = create_app(port=8765, settings=settings, session_token="test-token")
+    private_detail = "private OAuth detail C:\\Users\\person\\credentials.json"
+
+    def fail_authorization(*_args, **_kwargs):
+        raise OSError(private_detail)
+
+    monkeypatch.setattr(
+        app.state.youtube_publisher,
+        "complete_authorization",
+        fail_authorization,
+    )
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        callback = client.get("/?state=safe-state&code=safe-code")
+
+    assert callback.status_code == 400
+    assert "Google authorization could not be completed" in callback.text
+    assert private_detail not in callback.text
 
 
 def test_youtube_publish_accepts_only_a_real_project_export_and_reports_completion(

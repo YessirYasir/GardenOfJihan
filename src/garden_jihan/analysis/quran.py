@@ -2,12 +2,19 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 import unicodedata
 import uuid
 from dataclasses import asdict, dataclass, field
 from difflib import SequenceMatcher
 from pathlib import Path
+
+LOGGER = logging.getLogger(__name__)
+REFERENCE_VALIDATION_ERROR = (
+    "Installed reference failed integrity validation. "
+    "Reinstall the exact reviewed Tanzil profile."
+)
 
 # This registry is documentation for the future acoustic research layer. Garden of Jihan does
 # not currently classify any Qira'ah, reader, or transmission.
@@ -560,8 +567,12 @@ class QuranReference:
         try:
             loaded = json.loads(path.read_text(encoding="utf-8"))
             self._load_verified_package(loaded)
-        except (OSError, UnicodeError, json.JSONDecodeError, TypeError, ValueError, KeyError) as exc:
-            self.validation_error = f"Installed reference failed integrity validation: {exc}"
+        except (OSError, UnicodeError, json.JSONDecodeError, TypeError, ValueError, KeyError):
+            LOGGER.warning(
+                "Installed Quran reference failed integrity validation",
+                exc_info=True,
+            )
+            self.validation_error = REFERENCE_VALIDATION_ERROR
             self.records = []
             self.source = {}
             self.integrity = {}
