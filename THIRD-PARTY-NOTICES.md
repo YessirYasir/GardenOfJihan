@@ -20,3 +20,20 @@ encoding and styled caption rendering.
 The Windows ZIP also contains `FFMPEG-LICENSE.txt` and
 `FFMPEG-BUILD-INFO.txt`, copied unchanged from the checksum-verified binary
 archive.
+
+## Python embedded runtime
+
+The private portable browser bundle contains the official CPython 3.12.10
+64-bit Windows embedded distribution from the Python Software Foundation.
+The build verifies both the pinned archive SHA256 and the Authenticode signer
+on `python.exe` and `pythonw.exe` before packaging.
+
+- Official archive: https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip
+- Pinned archive SHA256:
+  `4ACBED6DD1C744B0376E3B1CF57CE906F9DC9E95E68824584C8099A63025A3C3`
+- Python license: https://docs.python.org/3/license.html
+
+The unchanged Python `LICENSE.txt` remains inside the portable `runtime`
+folder. Installed Python packages retain their wheel metadata and license files
+inside `app/vendor`; their exact versions and distribution hashes are locked in
+`requirements-portable-windows.txt`.

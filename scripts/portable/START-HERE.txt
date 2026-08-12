@@ -1,0 +1,43 @@
+GARDEN OF JIHAN — جيهان
+Private local AI video clipping in your browser
+
+START IN THREE STEPS
+
+1. Right-click the downloaded ZIP and choose Extract All.
+   Do not run Garden of Jihan from inside the ZIP preview.
+
+2. Open the extracted folder and double-click:
+   START GARDEN OF JIHAN.cmd
+
+3. Wait a moment. Your normal browser opens Garden of Jihan automatically.
+   Keep the extracted folder together; there is nothing to install.
+
+FIRST ANALYSIS
+
+The first analysis downloads the free local speech and meaning models once.
+The download can take several minutes depending on the connection. Later
+analyses reuse the cached models on this computer.
+
+PRIVACY AND COST
+
+- Video analysis and clip rendering run on this computer.
+- The interface is available only on the private 127.0.0.1 loopback address.
+- No Python, Git, FFmpeg, administrator access, subscription, credits, or paid
+  AI API key is required.
+- Network access occurs only for a source or model/reference download the user
+  requests, or an optional official publishing connection the user starts.
+
+ENDING A SESSION
+
+Use Quit app in the upper-right corner. Saved projects remain under the current
+Windows user's local GardenOfJihan data folder. To reopen, double-click the
+same START GARDEN OF JIHAN.cmd file.
+
+IF WINDOWS ASKS FOR CONFIRMATION
+
+This private tester bundle uses an official Python Software Foundation runtime
+and plain, auditable Garden of Jihan scripts. It does not contain a custom
+unsigned GardenOfJihan.exe. Extract the ZIP before opening it and accept only
+files received directly from the project maintainer.
+
+Process and republish only media you have permission to use.

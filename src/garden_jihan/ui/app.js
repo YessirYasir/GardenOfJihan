@@ -22,6 +22,20 @@ function api(path, options={}) {
   if (options.body && !(options.body instanceof FormData)) headers.set('Content-Type','application/json');
   return fetch(path, {...options, headers});
 }
+async function initializeWelcome(){
+  const welcome=document.getElementById('welcomeGarden');
+  try{
+    const res=await api('/api/health');const data=await res.json();if(!res.ok||data.product!=='garden-of-jihan')throw new Error('Local health check failed');
+    if(data.first_run){welcome.classList.remove('hidden');document.getElementById('beginGarden').focus();}
+  }catch(err){console.warn('Garden of Jihan local readiness check failed',err);}
+}
+document.getElementById('beginGarden').addEventListener('click',async event=>{
+  const button=event.currentTarget;button.disabled=true;button.textContent='Opening your garden…';
+  try{await api('/api/onboarding/complete',{method:'POST'});}catch(err){console.warn('First-run preference was not saved',err);}
+  document.getElementById('welcomeGarden').classList.add('hidden');
+  button.disabled=false;button.innerHTML='Begin with a video <span>→</span>';
+  document.getElementById('sourceUrl').focus();
+});
 function projectPayload(){
   const captionMode=document.getElementById('captions').value;
   return {name:document.getElementById('projectName').value.trim()||'Untitled project',selected_ids:[...selected],boundaries,aspect:document.getElementById('aspect').value,framing:document.getElementById('framing').value,captions:captionMode!=='off',word_tracking:captionMode==='words',caption_style:document.getElementById('captionStyle').value,caption_position:document.getElementById('captionPosition').value};
@@ -317,5 +331,6 @@ function scoreLabel(key){return ({hook:'Hook',emotion:'Emotion',curiosity:'Curio
 function formatTime(sec){sec=Math.max(0,Math.floor(sec));const m=Math.floor(sec/60);const s=sec%60;return `${m}:${String(s).padStart(2,'0')}`;}
 function escapeHtml(value){return String(value).replace(/[&<>'"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));}
 showStep(0,{scroll:false});
+initializeWelcome();
 loadProjects();
 refreshPublishingStatus();

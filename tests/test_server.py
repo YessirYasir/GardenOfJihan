@@ -18,10 +18,27 @@ def test_health_and_security_headers(tmp_path):
     with TestClient(app, base_url="http://127.0.0.1:8765") as client:
         response = client.get("/api/health")
         assert response.status_code == 200
+        assert response.json()["product"] == "garden-of-jihan"
+        assert response.json()["first_run"] is True
         assert isinstance(response.json()["auto_framing_available"], bool)
         assert isinstance(response.json()["credential_protection_available"], bool)
         assert response.headers["x-frame-options"] == "DENY"
         assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
+
+
+def test_first_run_welcome_can_be_completed_locally(tmp_path):
+    settings = Settings(app_data=tmp_path)
+    app = create_app(port=8765, settings=settings, session_token="test-token")
+    headers = {"origin": "http://127.0.0.1:8765", "x-goj-token": "test-token"}
+
+    with TestClient(app, base_url="http://127.0.0.1:8765") as client:
+        completed = client.post("/api/onboarding/complete", headers=headers)
+        health = client.get("/api/health")
+
+    assert completed.status_code == 200
+    assert completed.json() == {"complete": True}
+    assert settings.onboarding_complete.read_text(encoding="utf-8") == "complete\n"
+    assert health.json()["first_run"] is False
 
 
 def test_mutation_requires_origin_and_token(tmp_path):
