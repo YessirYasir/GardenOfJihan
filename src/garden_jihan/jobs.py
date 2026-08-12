@@ -4,6 +4,7 @@ import json
 import math
 import shutil
 import threading
+import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -12,6 +13,7 @@ from pathlib import Path
 
 from garden_jihan.analysis.audience import youtube_replay_signal
 from garden_jihan.analysis.quran import QuranReference, normalize_arabic
+from garden_jihan.analysis.sampling import plan_listening_windows
 from garden_jihan.analysis.scoring import build_candidates
 from garden_jihan.analysis.semantics import LocalSemanticRanker
 from garden_jihan.analysis.signals import MediaSignals, TimedValue, build_media_signals
@@ -28,6 +30,7 @@ class JobState:
     id: str
     status: str = "queued"
     progress: int = 0
+    eta_seconds: int | None = None
     message: str = "Queued"
     error: str | None = None
     ranking_method: str = "base"
@@ -37,6 +40,7 @@ class JobState:
     media_signals: MediaSignals | None = None
     source_path: Path | None = None
     project: ProjectReview = field(default_factory=ProjectReview)
+    analysis_started_at: datetime | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
@@ -71,6 +75,7 @@ class JobManager:
         max_clips: int,
     ) -> JobState:
         job = self.create_upload_job()
+        job.analysis_started_at = datetime.now(UTC)
         self._pool.submit(self._run_url, job.id, url, mode, min_s, max_s, max_clips)
         return job
 
@@ -85,6 +90,7 @@ class JobManager:
     ) -> JobState:
         job = self.get(job_id)
         job.source_path = path
+        job.analysis_started_at = datetime.now(UTC)
         self._set(job, "queued", 0, "Queued for local analysis")
         self._pool.submit(self._analyze, job.id, path, mode, min_s, max_s, max_clips)
         return job
@@ -101,9 +107,18 @@ class JobManager:
     def mark_upload_failed(self, job: JobState) -> None:
         self._set(job, "failed", 0, "Local upload failed safely")
 
-    def _set(self, job: JobState, status: str, progress: int, message: str):
+    def _set(
+        self,
+        job: JobState,
+        status: str,
+        progress: int,
+        message: str,
+        *,
+        eta_seconds: int | None = None,
+    ):
         with self._lock:
             job.status, job.progress, job.message = status, progress, message
+            job.eta_seconds = eta_seconds
             job.updated_at = datetime.now(UTC)
 
     def _run_url(
@@ -117,9 +132,21 @@ class JobManager:
     ):
         job = self.get(job_id)
         try:
-            self._set(job, "running", 8, "Safely acquiring source")
+            self._set(job, "running", 4, "Safely acquiring source", eta_seconds=60)
             folder = safe_job_path(self.settings.jobs_dir, job.id)
-            path = download_remote(url, folder / "source")
+
+            def acquiring_progress(fraction: float, eta: int | None) -> None:
+                mapped = 4 + round(max(0.0, min(1.0, fraction)) * 7)
+                total_eta = (eta + 44) if eta is not None else None
+                self._set(
+                    job,
+                    "running",
+                    mapped,
+                    "Bringing the video into your garden",
+                    eta_seconds=total_eta,
+                )
+
+            path = download_remote(url, folder / "source", progress=acquiring_progress)
             job.source_path = path
             if job.project.name == "Untitled project":
                 job.project.name = path.stem[:80] or "Imported video"
@@ -140,9 +167,20 @@ class JobManager:
     ):
         job = self.get(job_id)
         try:
-            self._set(job, "running", 20, "Validating media")
-            probe_media(path, self.settings.max_video_seconds)
-            self._set(job, "running", 38, "Understanding speech")
+            self._set(job, "running", 12, "Validating media", eta_seconds=48)
+            media = probe_media(path, self.settings.max_video_seconds)
+            self._set(job, "running", 16, "Surveying the whole video", eta_seconds=45)
+            signals = build_media_signals(path)
+            if replay:
+                signals.replay = replay
+            with self._lock:
+                job.media_signals = signals
+            listening_windows = plan_listening_windows(
+                float(media["duration"]),
+                signals.audio_energy,
+                min_clip_seconds=min_s,
+            )
+            self._set(job, "running", 20, "Understanding speech")
             language_hint = (
                 "so"
                 if mode == AnalysisMode.SOMALI
@@ -150,7 +188,37 @@ class JobManager:
                 if mode in {AnalysisMode.ARABIC, AnalysisMode.QURAN}
                 else None
             )
-            transcript = transcribe(path, language=language_hint)
+            listening_started = time.monotonic()
+            last_listening_progress = 19
+
+            def listening_progress(fraction: float, _duration: float | None) -> None:
+                nonlocal last_listening_progress
+                fraction = max(0.0, min(1.0, fraction))
+                mapped = 20 + round(fraction * 27)
+                if mapped <= last_listening_progress:
+                    return
+                last_listening_progress = mapped
+                elapsed = time.monotonic() - listening_started
+                eta_seconds = None
+                if fraction >= 0.02 and elapsed >= 2:
+                    eta_seconds = 12 + min(
+                        6 * 60 * 60,
+                        round(elapsed * (1 - fraction) / fraction),
+                    )
+                self._set(
+                    job,
+                    "running",
+                    mapped,
+                    "Understanding speech",
+                    eta_seconds=eta_seconds,
+                )
+
+            transcript = transcribe(
+                path,
+                language=language_hint,
+                progress=listening_progress,
+                clips=listening_windows,
+            )
             with self._lock:
                 job.transcript_segments = list(transcript.segments)
             effective_mode = mode
@@ -162,22 +230,23 @@ class JobManager:
                     if transcript.language == "so"
                     else AnalysisMode.GENERAL
                 )
-            self._set(job, "running", 58, "Reading audio and visual momentum")
-            signals = build_media_signals(path)
-            if replay:
-                signals.replay = replay
-            with self._lock:
-                job.media_signals = signals
+            self._set(
+                job,
+                "running",
+                58,
+                "Reading audio and visual momentum",
+                eta_seconds=10,
+            )
             ranking_message = (
                 "Ranking complete recitation segments"
                 if effective_mode == AnalysisMode.QURAN
                 else "Loading the local multilingual meaning model"
             )
-            self._set(job, "running", 76, ranking_message)
+            self._set(job, "running", 76, ranking_message, eta_seconds=5)
             job.candidates = build_candidates(
                 transcript.segments,
                 effective_mode,
-                min_s,
+                min_s if listening_windows is None else min(min_s, 20),
                 max_s,
                 max_clips,
                 signals=signals,
@@ -185,6 +254,17 @@ class JobManager:
                     None if effective_mode == AnalysisMode.QURAN else self._semantic_ranker
                 ),
             )
+            if listening_windows is not None and effective_mode != AnalysisMode.QURAN:
+                source_duration = float(media["duration"])
+                for candidate in job.candidates:
+                    if candidate.end - candidate.start >= min_s:
+                        continue
+                    center = (candidate.start + candidate.end) / 2
+                    candidate.start = max(
+                        0.0,
+                        min(source_duration - min_s, center - min_s / 2),
+                    )
+                    candidate.end = min(source_duration, candidate.start + min_s)
             if effective_mode == AnalysisMode.QURAN:
                 job.ranking_method = "quran_safe"
                 job.ranking_message = "Qur'an pause-and-completeness ranking; no semantic model"
@@ -195,10 +275,17 @@ class JobManager:
                 job.ranking_method = "base_fallback"
                 job.ranking_message = "Base ranking used; local meaning model unavailable"
             if effective_mode == AnalysisMode.QURAN:
-                self._set(job, "running", 90, "Matching the local Quran reference")
+                self._set(
+                    job,
+                    "running",
+                    90,
+                    "Matching the local Quran reference",
+                    eta_seconds=3,
+                )
                 self._attach_quran_matches(job.candidates, job.transcript_segments)
-            job.project.selected_ids = [
-                candidate.id for candidate in job.candidates if candidate.score >= 85
+            strong_ids = [candidate.id for candidate in job.candidates if candidate.score >= 85]
+            job.project.selected_ids = strong_ids or [
+                candidate.id for candidate in job.candidates[: min(3, len(job.candidates))]
             ]
             self._set(job, "complete", 100, f"Found {len(job.candidates)} clip candidates")
             job.updated_at = datetime.now(UTC)
@@ -304,7 +391,7 @@ class JobManager:
         transcript_segments: list[TranscriptSegment] | None = None,
         reference: QuranReference | None = None,
     ) -> None:
-        reference = reference or QuranReference(self.settings.quran_reference)
+        reference = reference or QuranReference(self.settings.active_quran_reference)
         for candidate in candidates:
             decision = reference.identify(candidate.transcript)
             public = decision.public(reference.source)
@@ -358,8 +445,10 @@ class JobManager:
     def _fail(self, job: JobState, exc: Exception):
         with self._lock:
             job.status = "failed"
+            job.eta_seconds = None
             job.error = str(exc)
             job.message = "Analysis failed safely"
+            job.updated_at = datetime.now(UTC)
 
     def get(self, job_id: str) -> JobState:
         with self._lock:
@@ -377,10 +466,14 @@ class JobManager:
 
     def public(self, job_id: str) -> JobPublic:
         job = self.get(job_id)
+        clock_start = job.analysis_started_at or job.created_at
+        clock_end = job.updated_at if job.status in {"complete", "failed"} else datetime.now(UTC)
         return JobPublic(
             id=job.id,
             status=job.status,
             progress=job.progress,
+            eta_seconds=job.eta_seconds,
+            elapsed_seconds=max(0, round((clock_end - clock_start).total_seconds())),
             message=job.message,
             error=job.error,
             ranking_method=job.ranking_method,
@@ -556,7 +649,9 @@ class JobManager:
                 )
                 if any(candidate.mode == AnalysisMode.QURAN for candidate in job.candidates):
                     if restored_quran_reference is None:
-                        restored_quran_reference = QuranReference(self.settings.quran_reference)
+                        restored_quran_reference = QuranReference(
+                            self.settings.active_quran_reference
+                        )
                     self._attach_quran_matches(
                         job.candidates,
                         job.transcript_segments,

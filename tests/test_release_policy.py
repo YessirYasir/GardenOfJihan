@@ -37,7 +37,10 @@ def test_packaged_instructions_never_recommend_unsigned_distribution():
     build_script = _read("scripts/build-windows.ps1")
 
     assert "Windows Public Beta" not in build_script
-    assert "Never distribute an unsigned GardenOfJihan.exe as a public release." in build_script
+    assert (
+        "Never distribute GardenOfJihan.exe publicly unless Windows identifies its trusted publisher."
+        in build_script
+    )
 
 
 def test_windows_package_collects_local_semantic_runtime():
@@ -45,7 +48,8 @@ def test_windows_package_collects_local_semantic_runtime():
 
     assert "--collect-all fastembed" in build_script
     assert "--collect-all onnxruntime" in build_script
-    assert "never sends transcript text to a paid or cloud fallback" in build_script
+    assert "prepare-offline-models.py" in build_script
+    assert "prepare-quran-reference.py" in build_script
 
 
 def test_windows_package_pins_and_verifies_ffmpeg_without_admin_package_manager():
@@ -86,6 +90,9 @@ def test_packaged_smoke_exercises_clean_shutdown_without_opening_a_window():
     assert 'Stop-Process -Id $process.Id -Force' in smoke_script
     assert "$homeMarkup" in smoke_script
     assert "$home =" not in smoke_script
+    assert 'id="progressClock"' in smoke_script
+    assert '"$origin/api/quran/reference"' in smoke_script
+    assert "[int]$quran.verses -ne 6236" in smoke_script
 
 
 def test_caption_smoke_accepts_current_ffmpeg_filter_flags_and_renders_video():

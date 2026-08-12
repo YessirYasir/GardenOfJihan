@@ -10,6 +10,9 @@ $runtimeRoot = Join-Path $packageRoot "runtime"
 $appRoot = Join-Path $packageRoot "app"
 $vendorRoot = Join-Path $appRoot "vendor"
 $toolsRoot = Join-Path $repoRoot "build-tools"
+$modelRoot = Join-Path $packageRoot "models"
+$modelCacheRoot = Join-Path $toolsRoot "model-cache"
+$quranCacheRoot = Join-Path $toolsRoot "quran-reference"
 
 $pythonVersion = "3.12.10"
 $pythonArchiveName = "python-$pythonVersion-embed-amd64.zip"
@@ -107,6 +110,20 @@ Get-ChildItem -LiteralPath $appRoot -Recurse -Directory -Force |
   Remove-Item -Recurse -Force
 Get-ChildItem -LiteralPath $appRoot -Recurse -File -Filter "*.pyc" | Remove-Item -Force
 
+Write-Host "Including checksum-verified speech and meaning resources for a fast first analysis..."
+& (Join-Path $runtimeRoot "python.exe") -I `
+  (Join-Path $repoRoot "scripts\prepare-offline-models.py") `
+  --destination $modelRoot `
+  --cache $modelCacheRoot
+if ($LASTEXITCODE -ne 0) { throw "Verified offline resource preparation failed" }
+
+Write-Host "Including the checksum-verified reviewed Qur'an guide..."
+& (Join-Path $runtimeRoot "python.exe") -I `
+  (Join-Path $repoRoot "scripts\prepare-quran-reference.py") `
+  --destination (Join-Path $modelRoot "quran_reference.json") `
+  --cache $quranCacheRoot
+if ($LASTEXITCODE -ne 0) { throw "Verified Qur'an reference preparation failed" }
+
 Write-Host "Acquiring checksum-pinned FFmpeg $ffmpegVersion..."
 Get-VerifiedArchive `
   -ArchivePath $ffmpegArchivePath `
@@ -160,6 +177,9 @@ $arabicBrand = [string]::Concat([char[]](0x062C, 0x064A, 0x0647, 0x0627, 0x0646)
   ffmpeg_version = $ffmpegVersion
   ffmpeg_archive_sha256 = $ffmpegArchiveSha256.ToLowerInvariant()
   requirements_sha256 = $requirementsHash
+  speech_model_revision = "536b0662742c02347bc0e980a01041f333bce120"
+  meaning_model_revision = "614241f622f53c4eeff9890bdc4f31cfecc418b3"
+  quran_reference_sha256 = "d25401b9235ea0c77a2511b1edc5b5d28df1b3bcd0259d6657ec6e303dd8eee9"
   public_release = $false
 } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $packageRoot "PACKAGE-INFO.json") -Encoding utf8
 

@@ -39,7 +39,7 @@ def test_first_run_welcome_is_local_honest_and_keyboard_reachable():
     assert 'role="dialog" aria-modal="true"' in html
     assert 'id="beginGarden"' in html
     assert "جيهان" in html
-    assert "The first visit may take a few minutes while the garden prepares itself" in html
+    assert "Your private garden is ready as soon as it opens" in html
     assert "opens as a private garden on this computer" in html
     assert "@media(prefers-reduced-motion:reduce)" in app_css
     assert "api('/api/onboarding/complete',{method:'POST'})" in app_js
@@ -73,6 +73,11 @@ def test_analysis_progress_is_accessible_and_does_not_scroll_on_launch():
     assert "showStep(0,{scroll:false});" in app_js
     assert "let analysisBusy=false;" in app_js
     assert "startAnalysisButton.disabled=busy;" in app_js
+    assert 'id="progressClock" aria-live="polite"' in html
+    assert "data.elapsed_seconds" in app_js
+    assert "working normally" in app_js
+    assert "about ${clockTime(eta)} left" in app_js
+    assert "Stopped after ${clockTime(elapsed)}" in app_js
     assert ".trust-row{justify-content:center;overflow:visible;flex-wrap:wrap" in app_css
 
 
@@ -113,7 +118,7 @@ def test_moment_status_explains_results_without_exposing_implementation_details(
     assert "Your moments are ready" in app_js
     assert "Careful Qur’an review" in app_js
     assert "Surah, Ayah, and Qira’at are never guessed" in app_js
-    assert "semantic_coherence:'Topic coherence'" in app_js
+    assert "semantic_coherence:'Story flow'" in app_js
 
 
 def test_auto_framing_is_honest_and_keeps_manual_fallbacks():
@@ -204,3 +209,14 @@ def test_visible_dashboard_copy_avoids_technical_product_language():
         r"model-estimated",
     ):
         assert re.search(forbidden, visible_text, flags=re.IGNORECASE) is None
+
+
+def test_quran_guide_is_included_and_never_sends_user_out_for_setup():
+    html = _ui_text("index.html")
+    guide = _ui_text("quran-reference.js")
+
+    assert "complete reviewed guide is included" in html
+    assert "quranReferenceFile" not in html
+    assert "tanzil.net/download" not in html
+    assert "6,236 Ayahs are included and verified" in guide
+    assert "method: 'POST'" not in guide

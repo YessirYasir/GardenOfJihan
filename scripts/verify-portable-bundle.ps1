@@ -19,6 +19,11 @@ $requiredFiles = @(
   $manifest,
   (Join-Path $resolvedPackage "app\portable_start.pyw"),
   (Join-Path $resolvedPackage "app\garden_jihan\launcher.py"),
+  (Join-Path $resolvedPackage "models\speech\model.bin"),
+  (Join-Path $resolvedPackage "models\speech\tokenizer.json"),
+  (Join-Path $resolvedPackage "models\meaning\onnx\model_O4.onnx"),
+  (Join-Path $resolvedPackage "models\meaning\tokenizer.json"),
+  (Join-Path $resolvedPackage "models\quran_reference.json"),
   (Join-Path $resolvedPackage "runtime\bin\ffmpeg.exe"),
   (Join-Path $resolvedPackage "runtime\bin\ffprobe.exe")
 )
@@ -70,6 +75,8 @@ foreach ($line in Get-Content -LiteralPath $manifest) {
 
 & $python -I -c "import sys; assert sys.flags.isolated == 1; import garden_jihan, fastapi, cv2, faster_whisper, fastembed; print(sys.version.split()[0])"
 if ($LASTEXITCODE -ne 0) { throw "Portable Python runtime import check failed" }
+& $python -I -c "from pathlib import Path; from garden_jihan.analysis.quran import QuranReference; r=QuranReference(Path(r'$resolvedPackage\models\quran_reference.json')); assert r.available and len(r.records)==6236"
+if ($LASTEXITCODE -ne 0) { throw "Portable Qur'an guide integrity check failed" }
 
 $launcherText = Get-Content -LiteralPath $launcher -Raw
 if (

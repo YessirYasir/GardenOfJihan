@@ -9,6 +9,7 @@ import threading
 import time
 import webbrowser
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 import uvicorn
 
@@ -88,6 +89,14 @@ def _open_ui_when_ready(port: int, timeout_seconds: float = 30.0) -> None:
 
 
 def run() -> None:
+    if getattr(sys, "frozen", False):
+        model_root = Path(sys.executable).resolve().parent / "models"
+        if model_root.is_dir():
+            os.environ.setdefault("GOJ_SPEECH_MODEL_PATH", str(model_root / "speech"))
+            os.environ.setdefault("GOJ_MEANING_MODEL_PATH", str(model_root / "meaning"))
+            os.environ.setdefault(
+                "GOJ_QURAN_REFERENCE_PATH", str(model_root / "quran_reference.json")
+            )
     settings = Settings()
     _configure_logging(settings)
     if settings.bind_host != "127.0.0.1":

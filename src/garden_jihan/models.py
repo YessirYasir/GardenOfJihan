@@ -89,6 +89,8 @@ class JobPublic(BaseModel):
     id: str
     status: str
     progress: int = Field(ge=0, le=100)
+    eta_seconds: int | None = Field(default=None, ge=0)
+    elapsed_seconds: int = Field(default=0, ge=0)
     message: str
     error: str | None = None
     ranking_method: str = "base"

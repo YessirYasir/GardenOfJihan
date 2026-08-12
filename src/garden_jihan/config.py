@@ -23,5 +23,16 @@ class Settings:
         return self.app_data / "reference" / "quran_reference.json"
 
     @property
+    def bundled_quran_reference(self) -> Path | None:
+        value = os.getenv("GOJ_QURAN_REFERENCE_PATH", "").strip()
+        return Path(value).expanduser().resolve() if value else None
+
+    @property
+    def active_quran_reference(self) -> Path:
+        # Packaged reference content is verified every time it is opened. Never
+        # silently fall back to another text if that packaged copy is damaged.
+        return self.bundled_quran_reference or self.quran_reference
+
+    @property
     def onboarding_complete(self) -> Path:
         return self.app_data / "onboarding-complete"
