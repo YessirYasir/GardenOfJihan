@@ -97,7 +97,7 @@ jobs:
         with:
           subject-path: dist/GardenOfJihan-Windows-x64.zip
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: startsWith(github.ref, 'refs/tags/v')
         with:
           name: GardenOfJihan-Windows-x64
