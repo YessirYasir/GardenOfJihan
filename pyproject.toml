@@ -21,6 +21,8 @@ dependencies = [
 [project.optional-dependencies]
 ai = [
   "faster-whisper>=1.1,<2",
+  "fastembed>=0.8,<0.9",
+  "opencv-python-headless>=4.13,<5",
 ]
 dev = [
   "pytest>=8,<10",
@@ -37,6 +39,7 @@ windows = [
 
 [project.scripts]
 garden-of-jihan = "garden_jihan.launcher:main"
+garden-of-jihan-somali-eval = "garden_jihan.analysis.somali:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/garden_jihan"]

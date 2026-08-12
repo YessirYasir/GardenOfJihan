@@ -5,7 +5,13 @@ import uuid
 from collections import Counter
 from dataclasses import asdict, dataclass, field
 
+from garden_jihan.analysis.semantics import (
+    LocalSemanticRanker,
+    SemanticProfile,
+    cosine_similarity,
+)
 from garden_jihan.analysis.signals import MediaSignals
+from garden_jihan.analysis.somali import somali_matching_tokens
 from garden_jihan.analysis.transcription import TranscriptSegment
 from garden_jihan.models import AnalysisMode, ClipCandidate
 
@@ -16,7 +22,7 @@ HOOKS = {
     },
     "somali": {
         "bal", "ogow", "sabab", "maxaa", "sidee", "runta", "qalad", "dhib", "marka", "laakiin",
-        "xaqiiqda", "fiiri", "maqal", "marnaba", "qofna", "dadka", "arrin", "su'aal",
+        "xaqiiqda", "fiiri", "maqal", "marnaba", "qofna", "dadka", "arrin", "suaal",
     },
     "arabic": {
         "اسمع", "لماذا", "كيف", "الحقيقة", "لكن", "مشكلة", "سبب", "تخيل", "انتبه", "هل",
@@ -79,13 +85,17 @@ class ScoredWindow:
     score: float
     reasons: list[str]
     breakdown: dict[str, float] = field(default_factory=dict)
+    segment_texts: list[str] = field(default_factory=list)
+    semantic_model: str | None = None
 
 
 def _language_key(mode: AnalysisMode) -> str:
     return "general" if mode in {AnalysisMode.AUTO, AnalysisMode.GENERAL, AnalysisMode.QURAN} else mode.value
 
 
-def _tokens(text: str) -> list[str]:
+def _tokens(text: str, key: str = "general") -> list[str]:
+    if key == "somali":
+        return somali_matching_tokens(text)
     return re.findall(r"[\w\u0600-\u06FF'-]+", text.lower(), flags=re.UNICODE)
 
 
@@ -103,8 +113,8 @@ def _clamp(value: float) -> float:
 
 
 def _jaccard(a: str, b: str, key: str) -> float:
-    a_tokens = set(_content_tokens(_tokens(a), key))
-    b_tokens = set(_content_tokens(_tokens(b), key))
+    a_tokens = set(_content_tokens(_tokens(a, key), key))
+    b_tokens = set(_content_tokens(_tokens(b, key), key))
     if not a_tokens or not b_tokens:
         return 0.0
     return len(a_tokens & b_tokens) / len(a_tokens | b_tokens)
@@ -120,7 +130,7 @@ def score_text_detailed(
     replay_signal: float | None = None,
 ) -> tuple[float, list[str], dict[str, float]]:
     key = _language_key(mode)
-    tokens = _tokens(text)
+    tokens = _tokens(text, key)
     content = _content_tokens(tokens, key)
     first = tokens[: min(30, len(tokens))]
     final = tokens[-min(24, len(tokens)) :] if tokens else []
@@ -243,6 +253,43 @@ def _is_duplicate(candidate: ScoredWindow, chosen: list[ScoredWindow], key: str)
     return False
 
 
+def _rerank_semantic_shortlist(
+    shortlist: list[ScoredWindow],
+    profiles: list[SemanticProfile],
+    model_name: str,
+    max_clips: int,
+) -> list[ScoredWindow]:
+    if len(shortlist) != len(profiles):
+        raise ValueError("Semantic profiles do not match the ranking shortlist")
+    for window, profile in zip(shortlist, profiles, strict=True):
+        window.score = round(_clamp(window.score * 0.90 + profile.coherence * 0.10), 1)
+        window.breakdown["semantic_coherence"] = profile.coherence
+        window.semantic_model = model_name
+        if profile.coherence >= 70:
+            window.reasons = [
+                *window.reasons,
+                "Local multilingual embeddings support topic coherence",
+            ][:6]
+
+    selected: list[int] = []
+    remaining = set(range(len(shortlist)))
+    while remaining and len(selected) < max_clips:
+        def selection_score(index: int) -> float:
+            if not selected:
+                return shortlist[index].score
+            similarity = max(
+                cosine_similarity(profiles[index].vector, profiles[chosen].vector)
+                for chosen in selected
+            )
+            duplicate_penalty = max(0.0, (similarity - 0.78) / 0.22) * 7.0
+            return shortlist[index].score - duplicate_penalty
+
+        best = max(remaining, key=lambda index: (selection_score(index), shortlist[index].score))
+        selected.append(best)
+        remaining.remove(best)
+    return [shortlist[index] for index in selected]
+
+
 def build_candidates(
     segments: list[TranscriptSegment],
     mode: AnalysisMode,
@@ -250,6 +297,7 @@ def build_candidates(
     max_seconds: int = 75,
     max_clips: int = 10,
     signals: MediaSignals | None = None,
+    semantic_ranker: LocalSemanticRanker | None = None,
 ) -> list[ClipCandidate]:
     windows: list[ScoredWindow] = []
     signals = signals or MediaSignals()
@@ -279,19 +327,40 @@ def build_candidates(
                 scene_signal=visual,
                 replay_signal=replay,
             )
-            windows.append(ScoredWindow(start, end, text, score, reasons, breakdown))
+            windows.append(
+                ScoredWindow(
+                    start,
+                    end,
+                    text,
+                    score,
+                    reasons,
+                    breakdown,
+                    [segment.text for segment in segments[i : j + 1]],
+                )
+            )
 
             if text.rstrip().endswith((".", "!", "?", "؟", ":")):
                 break
 
     windows.sort(key=lambda window: window.score, reverse=True)
-    chosen: list[ScoredWindow] = []
+    shortlist: list[ScoredWindow] = []
     for window in windows:
-        if _is_duplicate(window, chosen, key):
+        if _is_duplicate(window, shortlist, key):
             continue
-        chosen.append(window)
-        if len(chosen) >= max_clips:
+        shortlist.append(window)
+        if len(shortlist) >= max(max_clips * 6, max_clips):
             break
+
+    chosen = shortlist[:max_clips]
+    if semantic_ranker is not None and mode != AnalysisMode.QURAN and shortlist:
+        profiles = semantic_ranker.profile_windows([window.segment_texts for window in shortlist])
+        if profiles:
+            chosen = _rerank_semantic_shortlist(
+                shortlist,
+                profiles,
+                semantic_ranker.model_name,
+                max_clips,
+            )
 
     return [
         ClipCandidate(
@@ -304,6 +373,7 @@ def build_candidates(
             transcript=window.text,
             mode=mode,
             score_breakdown=window.breakdown,
+            semantic_model=window.semantic_model,
         )
         for window in chosen
     ]

@@ -4,7 +4,7 @@ Garden of Jihan is an MIT-licensed open-source Windows application maintained in
 
 ## Goal
 
-Public Windows releases should be traceable to this repository, built by the repository's automated GitHub Actions pipeline, scanned before publication, and signed with a trusted code-signing certificate when the open-source signing application is approved.
+Public Windows releases must be traceable to this repository, built by the repository's automated GitHub Actions pipeline, scanned before publication, and signed with a trusted code-signing certificate. Until trusted signing is available, public Windows publication remains blocked.
 
 ## Planned open-source signing
 
@@ -14,7 +14,7 @@ Required acknowledgement once approved:
 
 > Free code signing provided by SignPath.io, certificate by SignPath Foundation.
 
-Until trusted signing is active, the project will not describe unsigned binaries as signed or as guaranteed to bypass Windows SmartScreen.
+Until trusted signing is active, the project will not publish or recommend an unsigned Windows executable. Unsigned CI artifacts are internal validation outputs only.
 
 ## Roles
 
@@ -35,7 +35,9 @@ A public executable release must:
 6. Run Microsoft Defender Antivirus against the packaged application before publication.
 7. Publish a SHA256 checksum for the release ZIP.
 8. Generate GitHub build-provenance attestation for the release artifact.
-9. Be manually approved for trusted code signing when SignPath signing is available.
+9. Verify a valid trusted Authenticode signature on both the package-directory executable and the exact executable extracted from the release ZIP.
+10. Verify that the two signed executables are byte-for-byte identical before publication.
+11. Be manually approved for trusted code signing when SignPath signing is available.
 
 ## Privacy
 

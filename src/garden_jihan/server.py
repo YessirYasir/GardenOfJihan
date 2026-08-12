@@ -1,44 +1,226 @@
 from __future__ import annotations
 
+import html
 import json
+import logging
+from collections.abc import Callable
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
+from garden_jihan.analysis.quran import QuranReference
 from garden_jihan.config import Settings
 from garden_jihan.jobs import JobManager
+from garden_jihan.media.exporting import ExportManager, ExportPlan, PreparedExportClip
+from garden_jihan.media.framing import auto_framing_runtime_status
 from garden_jihan.media.probe import probe_media
-from garden_jihan.media.render import render_clip
+from garden_jihan.media.render import (
+    caption_cues_for_range,
+    quran_word_caption_cues_for_range,
+    word_caption_cues_for_range,
+)
 from garden_jihan.media.sources import inspect_source
-from garden_jihan.models import AnalyzeRequest, ExportRequest, SourceInspectRequest
+from garden_jihan.models import (
+    AnalysisMode,
+    AnalyzeRequest,
+    ExportRequest,
+    ProjectReviewRequest,
+    SourceInspectRequest,
+    YouTubePublishRequest,
+)
+from garden_jihan.publish.credentials import ProtectedJsonStore, credential_protection_available
+from garden_jihan.publish.manager import YouTubePublishManager
+from garden_jihan.publish.youtube import (
+    YouTubePublisher,
+    YouTubePublishingError,
+    YouTubeUploadMetadata,
+)
 from garden_jihan.security import LocalSecurityMiddleware, new_session_token, safe_job_path
 
 ALLOWED_UPLOAD_EXTENSIONS = {".mp4", ".mov", ".mkv", ".webm", ".m4v"}
+MAX_QURAN_REFERENCE_BYTES = 8 * 1024 * 1024
+MAX_OAUTH_CLIENT_BYTES = 64 * 1024
+LOGGER = logging.getLogger(__name__)
 
 
-def create_app(port: int, settings: Settings | None = None, session_token: str | None = None) -> FastAPI:
+def _quran_reference_status(reference: QuranReference) -> dict:
+    source = {
+        key: reference.source.get(key)
+        for key in ("name", "version", "profile", "license", "license_url", "url", "updates")
+        if reference.source.get(key)
+    }
+    return {
+        "installed": reference.installed,
+        "available": reference.available,
+        "verified": reference.available,
+        "verses": len(reference.records),
+        "source": source,
+        "integrity": reference.integrity,
+        "validation_error": reference.validation_error,
+    }
+
+
+def create_app(
+    port: int,
+    settings: Settings | None = None,
+    session_token: str | None = None,
+    shutdown_callback: Callable[[], None] | None = None,
+) -> FastAPI:
     settings = settings or Settings()
     token = session_token or new_session_token()
-    app = FastAPI(title="Garden of Jihan", docs_url=None, redoc_url=None, openapi_url=None)
+
+    @asynccontextmanager
+    async def lifespan(instance: FastAPI):
+        yield
+        instance.state.youtube_uploads.shutdown()
+        instance.state.exports.shutdown()
+        instance.state.jobs.shutdown()
+
+    app = FastAPI(
+        title="Garden of Jihan",
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+        lifespan=lifespan,
+    )
     app.state.settings = settings
     app.state.session_token = token
     app.state.jobs = JobManager(settings)
+    app.state.exports = ExportManager(max_workers=settings.max_concurrent_jobs)
+    app.state.youtube_publisher = YouTubePublisher(
+        ProtectedJsonStore(settings.app_data / "credentials" / "youtube.bin")
+    )
+    app.state.youtube_uploads = YouTubePublishManager(app.state.youtube_publisher)
 
     app.add_middleware(LocalSecurityMiddleware, session_token=token, port=port)
     ui_dir = Path(__file__).parent / "ui"
     app.mount("/static", StaticFiles(directory=ui_dir), name="static")
 
+    def youtube_callback_response(state: str, code: str, error: str) -> HTMLResponse:
+        if error:
+            safe_error = html.escape(error[:200])
+            return HTMLResponse(
+                f"<h1>YouTube was not connected</h1><p>{safe_error}</p>"
+                "<p>You can close this tab and return to Garden of Jihan.</p>",
+                status_code=400,
+            )
+        try:
+            app.state.youtube_publisher.complete_authorization(state, code)
+        except (OSError, RuntimeError, YouTubePublishingError):
+            LOGGER.warning("YouTube OAuth callback failed", exc_info=True)
+            return HTMLResponse(
+                "<h1>YouTube was not connected</h1>"
+                "<p>Google authorization could not be completed. Return to Garden of Jihan "
+                "and try again.</p>"
+                "<p>You can close this tab and return to Garden of Jihan.</p>",
+                status_code=400,
+            )
+        return HTMLResponse(
+            "<h1>YouTube connected</h1>"
+            "<p>Garden of Jihan received upload-only permission. You can close this tab.</p>"
+        )
+
     @app.get("/", response_class=HTMLResponse)
-    async def home():
+    def home(state: str = "", code: str = "", error: str = ""):
+        if state or code or error:
+            return youtube_callback_response(state, code, error)
         html = (ui_dir / "index.html").read_text(encoding="utf-8")
         return HTMLResponse(html.replace("__GOJ_TOKEN__", token))
 
     @app.get("/api/health")
     async def health():
-        return {"ok": True, "local": True, "version": "0.1.0"}
+        auto_framing_available, _message = auto_framing_runtime_status()
+        return {
+            "ok": True,
+            "local": True,
+            "version": "0.1.0",
+            "auto_framing_available": auto_framing_available,
+            "credential_protection_available": credential_protection_available(),
+        }
+
+    @app.post("/api/app/quit", status_code=202)
+    async def quit_app(background_tasks: BackgroundTasks):
+        if shutdown_callback is None:
+            raise HTTPException(
+                status_code=409,
+                detail="App shutdown is available only from the Windows desktop launcher",
+            )
+        if app.state.jobs.has_active_work():
+            raise HTTPException(status_code=409, detail="Wait for local analysis to finish")
+        if app.state.exports.has_active_work():
+            raise HTTPException(status_code=409, detail="Wait for local rendering to finish")
+        if app.state.youtube_uploads.has_active_work():
+            raise HTTPException(status_code=409, detail="Wait for the YouTube upload to finish")
+        background_tasks.add_task(shutdown_callback)
+        return {"closing": True, "message": "Garden of Jihan is closing safely"}
+
+    @app.get("/api/quran/reference")
+    async def quran_reference_status():
+        reference = QuranReference(settings.quran_reference)
+        return _quran_reference_status(reference)
+
+    @app.post("/api/quran/reference")
+    async def install_quran_reference(file: Annotated[UploadFile, File()]):
+        suffix = Path(file.filename or "").suffix.lower()
+        if suffix not in {".txt", ".text"}:
+            raise HTTPException(status_code=415, detail="Choose the official Tanzil UTF-8 text file")
+        raw = await file.read(MAX_QURAN_REFERENCE_BYTES + 1)
+        if len(raw) > MAX_QURAN_REFERENCE_BYTES:
+            raise HTTPException(status_code=413, detail="Quran reference file is unexpectedly large")
+        try:
+            text = raw.decode("utf-8-sig")
+        except UnicodeDecodeError as exc:
+            raise HTTPException(status_code=400, detail="Quran reference must be UTF-8 text") from exc
+        try:
+            reference = QuranReference.install_tanzil_text(text, settings.quran_reference)
+        except (ValueError, TypeError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return _quran_reference_status(reference)
+
+    @app.get("/api/publish/status")
+    async def publishing_status():
+        return {
+            "youtube": app.state.youtube_publisher.status(),
+            "tiktok": {
+                "available": False,
+                "message": (
+                    "Direct TikTok posting remains disabled until Garden of Jihan has an "
+                    "audited Content Posting API client and a supported secure OAuth backend."
+                ),
+            },
+        }
+
+    @app.post("/api/publish/youtube/client")
+    async def install_youtube_client(file: Annotated[UploadFile, File()]):
+        raw = await file.read(MAX_OAUTH_CLIENT_BYTES + 1)
+        if len(raw) > MAX_OAUTH_CLIENT_BYTES:
+            raise HTTPException(status_code=413, detail="OAuth client file is unexpectedly large")
+        try:
+            app.state.youtube_publisher.install_client(raw)
+        except (OSError, RuntimeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return app.state.youtube_publisher.status()
+
+    @app.post("/api/publish/youtube/connect")
+    async def connect_youtube():
+        redirect_uri = f"http://127.0.0.1:{port}"
+        try:
+            authorization_url = app.state.youtube_publisher.start_authorization(redirect_uri)
+        except (RuntimeError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return {"authorization_url": authorization_url}
+
+    @app.delete("/api/publish/youtube/connection")
+    async def disconnect_youtube():
+        try:
+            app.state.youtube_publisher.disconnect()
+        except (OSError, RuntimeError) as exc:
+            raise HTTPException(status_code=500, detail="Local OAuth data could not be removed") from exc
+        return {"connected": False}
 
     @app.post("/api/source/inspect")
     async def inspect(payload: SourceInspectRequest):
@@ -75,8 +257,10 @@ def create_app(port: int, settings: Settings | None = None, session_token: str |
                     handle.write(chunk)
         except Exception:
             destination.unlink(missing_ok=True)
+            app.state.jobs.mark_upload_failed(job)
             raise
-        job.source_path = destination
+        project_name = Path(file.filename or "Local video").stem[:80] or "Local video"
+        app.state.jobs.mark_upload_ready(job, destination, project_name)
         return {"upload_id": job.id, "filename": destination.name, "bytes": total}
 
     @app.post("/api/jobs/analyze")
@@ -108,6 +292,8 @@ def create_app(port: int, settings: Settings | None = None, session_token: str |
                 )
         except (KeyError, ValueError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if payload.project_name and payload.project_name.strip():
+            job.project.name = payload.project_name.strip()
         return {"job_id": job.id}
 
     @app.get("/api/jobs/{job_id}")
@@ -116,6 +302,34 @@ def create_app(port: int, settings: Settings | None = None, session_token: str |
             return json.loads(app.state.jobs.public(job_id).model_dump_json())
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Unknown job") from exc
+
+    @app.get("/api/projects")
+    async def projects():
+        return {"projects": app.state.jobs.list_projects()}
+
+    @app.put("/api/jobs/{job_id}/project")
+    async def update_project(job_id: str, payload: ProjectReviewRequest):
+        try:
+            job = app.state.jobs.update_project(job_id, payload)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Unknown project") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except OSError as exc:
+            raise HTTPException(status_code=507, detail="Local project could not be saved") from exc
+        return json.loads(app.state.jobs.public(job.id).model_dump_json())
+
+    @app.delete("/api/projects/{job_id}")
+    async def delete_project(job_id: str):
+        try:
+            app.state.jobs.delete_project(job_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Unknown project") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except OSError as exc:
+            raise HTTPException(status_code=500, detail="Local project could not be removed") from exc
+        return {"removed": True}
 
     @app.get("/api/jobs/{job_id}/source")
     async def job_source(job_id: str):
@@ -127,7 +341,7 @@ def create_app(port: int, settings: Settings | None = None, session_token: str |
             raise HTTPException(status_code=404, detail="Source media is unavailable")
         return FileResponse(job.source_path)
 
-    @app.post("/api/jobs/{job_id}/export")
+    @app.post("/api/jobs/{job_id}/export", status_code=202)
     async def export(job_id: str, payload: ExportRequest):
         try:
             job = app.state.jobs.get(job_id)
@@ -141,10 +355,23 @@ def create_app(port: int, settings: Settings | None = None, session_token: str |
             candidate = by_id.get(candidate_id)
             if not candidate:
                 raise HTTPException(status_code=400, detail="Unknown clip candidate")
+            if (
+                payload.captions
+                and candidate.mode == AnalysisMode.QURAN
+                and not payload.word_tracking
+            ):
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        "Qur'an segment captions are disabled. Choose acoustic word highlighting; "
+                        "it will still fail safely unless the verified reference and local word "
+                        "timestamps pass every confidence check."
+                    ),
+                )
             requested.append(candidate)
 
         output_dir = safe_job_path(settings.jobs_dir, job.id) / "output"
-        files = []
+        prepared = []
         media_info = probe_media(job.source_path, settings.max_video_seconds)
         source_duration = float(media_info["duration"])
         for index, candidate in enumerate(requested, start=1):
@@ -158,20 +385,100 @@ def create_app(port: int, settings: Settings | None = None, session_token: str |
             if end > source_duration + 0.05:
                 raise HTTPException(status_code=400, detail="Adjusted clip exceeds source duration")
             filename = f"clip_{index:02d}_{candidate.id}.mp4"
-            destination = output_dir / filename
-            try:
-                render_clip(
-                    job.source_path,
-                    destination,
-                    start,
-                    end,
-                    payload.aspect,
-                    payload.framing,
+            caption_cues = None
+            if payload.captions:
+                if candidate.mode == AnalysisMode.QURAN:
+                    caption_cues = quran_word_caption_cues_for_range(
+                        candidate.quran_match or {},
+                        start,
+                        end,
+                    )
+                elif payload.word_tracking:
+                    caption_cues = word_caption_cues_for_range(
+                        job.transcript_segments,
+                        start,
+                        end,
+                    )
+                else:
+                    caption_cues = caption_cues_for_range(job.transcript_segments, start, end)
+                if not caption_cues:
+                    detail = (
+                        "Qur'an word captions remain disabled because confidence-gated acoustic "
+                        "timing is unavailable for this verified reference match."
+                        if candidate.mode == AnalysisMode.QURAN
+                        else "No local acoustic word timestamps are available for word highlighting"
+                        if payload.word_tracking
+                        else "No timed transcript segments are available for these captions"
+                    )
+                    raise HTTPException(
+                        status_code=409,
+                        detail=detail,
+                    )
+            prepared.append(
+                PreparedExportClip(
+                    candidate_id=candidate.id,
+                    filename=filename,
+                    start=start,
+                    end=end,
+                    caption_cues=tuple(caption_cues or ()),
                 )
-            except Exception as exc:
-                raise HTTPException(status_code=500, detail=f"Render failed: {exc}") from exc
-            files.append({"name": filename, "url": f"/api/jobs/{job.id}/output/{filename}"})
-        return {"files": files}
+            )
+        plan = ExportPlan(
+            project_id=job.id,
+            source=job.source_path,
+            output_dir=output_dir,
+            media_signals=job.media_signals,
+            aspect=payload.aspect,
+            framing=payload.framing,
+            caption_style=payload.caption_style,
+            caption_position=payload.caption_position,
+            clips=tuple(prepared),
+        )
+        try:
+            return app.state.exports.submit(plan).public()
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/api/exports/{export_id}")
+    async def export_status(export_id: str):
+        try:
+            return app.state.exports.public(export_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Unknown export") from exc
+
+    @app.post("/api/jobs/{job_id}/publish/youtube")
+    async def publish_youtube(job_id: str, payload: YouTubePublishRequest):
+        try:
+            job = app.state.jobs.get(job_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Unknown project") from exc
+        if job.status != "complete":
+            raise HTTPException(status_code=409, detail="Analysis is not complete")
+        if not app.state.youtube_publisher.status()["connected"]:
+            raise HTTPException(status_code=409, detail="Connect YouTube before publishing")
+        output_dir = (safe_job_path(settings.jobs_dir, job.id) / "output").resolve()
+        target = (output_dir / payload.filename).resolve()
+        if output_dir not in target.parents or not target.is_file():
+            raise HTTPException(status_code=404, detail="Exported clip is unavailable")
+        metadata = YouTubeUploadMetadata(
+            title=payload.title,
+            description=payload.description,
+            privacy=payload.privacy,
+            made_for_kids=payload.made_for_kids,
+            contains_synthetic_media=payload.contains_synthetic_media,
+        )
+        try:
+            upload = app.state.youtube_uploads.submit(target, metadata)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return upload.public()
+
+    @app.get("/api/publish/youtube/uploads/{upload_id}")
+    async def youtube_upload_status(upload_id: str):
+        try:
+            return app.state.youtube_uploads.get(upload_id).public()
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Unknown YouTube upload") from exc
 
     @app.get("/api/jobs/{job_id}/output/{filename}")
     async def output_file(job_id: str, filename: str):

@@ -33,31 +33,21 @@ jobs:
           if (-not (Test-Path "dist\GardenOfJihan\_internal\bin\ffprobe.exe") -and -not (Test-Path "dist\GardenOfJihan\bin\ffprobe.exe")) { throw "Bundled ffprobe missing" }
           if (-not (Test-Path "dist\GardenOfJihan-Windows-x64.zip")) { throw "Release ZIP missing" }
 
-      - name: Smoke-test packaged executable and UI
+      - name: Smoke-test bundled styled captions
         shell: pwsh
         run: |
-          $env:GOJ_PORT = "8765"
-          $env:GOJ_NO_BROWSER = "1"
-          $process = Start-Process -FilePath "dist\GardenOfJihan\GardenOfJihan.exe" -PassThru
-          try {
-            $healthy = $false
-            for ($i = 0; $i -lt 60; $i++) {
-              Start-Sleep -Seconds 1
-              if ($process.HasExited) { throw "GardenOfJihan.exe exited before becoming healthy" }
-              try {
-                $health = Invoke-RestMethod -Uri "http://127.0.0.1:8765/api/health" -TimeoutSec 3
-                if ($health.ok -eq $true -and $health.local -eq $true) {
-                  $healthy = $true
-                  break
-                }
-              } catch {}
-            }
-            if (-not $healthy) { throw "Packaged application did not become healthy in time" }
-            $homeResponse = Invoke-WebRequest -Uri "http://127.0.0.1:8765/" -TimeoutSec 5
-            if ($homeResponse.Content -notmatch "Garden of Jihan") { throw "Packaged UI did not load" }
-          } finally {
-            if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }
-          }
+          $ffmpeg = if (Test-Path "dist\GardenOfJihan\_internal\bin\ffmpeg.exe") { "dist\GardenOfJihan\_internal\bin\ffmpeg.exe" } else { "dist\GardenOfJihan\bin\ffmpeg.exe" }
+          .\scripts\smoke-captions.ps1 -FfmpegPath $ffmpeg
+
+      - name: Smoke-test dynamic vertical framing
+        shell: pwsh
+        run: |
+          $ffmpeg = if (Test-Path "dist\GardenOfJihan\_internal\bin\ffmpeg.exe") { "dist\GardenOfJihan\_internal\bin\ffmpeg.exe" } else { "dist\GardenOfJihan\bin\ffmpeg.exe" }
+          .\scripts\smoke-auto-framing.ps1 -FfmpegPath $ffmpeg
+
+      - name: Smoke-test packaged executable and UI
+        shell: pwsh
+        run: .\scripts\smoke-windows-package.ps1 -PackageRoot "dist\GardenOfJihan"
 
       - name: Scan packaged app with Microsoft Defender
         shell: pwsh
@@ -77,16 +67,9 @@ jobs:
           & $mpCmdRun -Scan -ScanType 3 -File $target
           if ($LASTEXITCODE -ne 0) { throw "Microsoft Defender scan did not return a clean result (exit code $LASTEXITCODE)" }
 
-      - name: Require trusted Authenticode signature
+      - name: Require trusted signature in the public release ZIP
         shell: pwsh
-        run: |
-          $exe = (Resolve-Path "dist\GardenOfJihan\GardenOfJihan.exe").Path
-          $signature = Get-AuthenticodeSignature -FilePath $exe
-          Write-Host "Signature status: $($signature.Status)"
-          if ($signature.Status -ne "Valid" -or -not $signature.SignerCertificate) {
-            throw "Public release blocked: GardenOfJihan.exe is not signed by a valid trusted Authenticode certificate."
-          }
-          Write-Host "Publisher: $($signature.SignerCertificate.Subject)"
+        run: .\scripts\assert-signed-release.ps1 -PackageRoot "dist\GardenOfJihan" -ArchivePath "dist\GardenOfJihan-Windows-x64.zip"
 
       - name: Create checksum
         shell: pwsh

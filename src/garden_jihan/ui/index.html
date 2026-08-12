@@ -4,10 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
+  <meta name="google" content="notranslate">
   <meta name="goj-token" content="__GOJ_TOKEN__">
   <title>Garden of Jihan</title>
   <link rel="stylesheet" href="/static/app.css">
   <link rel="stylesheet" href="/static/editor.css">
+  <link rel="stylesheet" href="/static/quran-reference.css">
 </head>
 <body>
   <div class="garden-scene" aria-hidden="true">
@@ -51,17 +53,18 @@
         <button class="step" data-step="5"><span>⇩</span><b>Exports</b><small>Render &amp; save</small></button>
       </div>
       <div class="side-heading">CAPABILITIES</div>
-      <div class="side-links"><span>☷ Somali understanding</span><span>۞ Arabic understanding</span><span>☾ Qur’an-aware path</span><span>◫ Vertical 9:16</span><span>▭ Landscape 16:9</span><span>□ Square 1:1</span></div>
-      <div class="system-status"><span class="status-dot"></span><div><small>System Status</small><strong>All local services ready</strong></div><em>⌁</em></div>
+      <div class="side-links"><span>☷ Somali-aware ranking</span><span>۞ Arabic-aware ranking</span><span>☾ Qur’an-aware path</span><span>◫ Vertical 9:16</span><span>▭ Landscape 16:9</span><span>□ Square 1:1</span></div>
+      <div class="system-status"><span class="status-dot"></span><div><small>System Status</small><strong>Local interface connected</strong></div><em>⌁</em></div>
     </aside>
 
     <section class="workspace glass-panel">
-      <div class="workspace-top"><span class="crumb">⌂ Dashboard</span><span class="secure-badge">♢ Secure local mode</span></div>
+      <div class="workspace-top"><span class="crumb">⌂ Dashboard</span><div class="workspace-tools"><span class="secure-badge">♢ Secure local mode</span><button id="quitApp" class="quit-app" type="button">Quit app</button></div></div>
 
       <div class="screen active" data-screen="0">
         <div class="panel-title"><span>1.</span><div><h2>Add Video Source</h2><p>Paste a supported link or choose a local video. Finished livestreams must be under two hours.</p></div></div>
+        <section id="projectLibrary" class="project-library"><div class="project-library-head"><div><h3>Local projects</h3><p>Resume reviewed clips and export settings stored only on this computer.</p></div><button id="refreshProjects" class="secondary">Refresh</button></div><div id="projectList" class="project-list"></div><div id="emptyProjects" class="project-empty">No saved projects yet. A completed analysis is saved automatically.</div></section>
         <div class="source-card">
-          <div class="input-row"><input id="sourceUrl" type="url" placeholder="https://youtube.com/watch?v=..." autocomplete="off"><button id="inspectSource" class="primary">Analyze source ✦</button></div>
+          <div class="input-row"><input id="sourceUrl" type="url" placeholder="https://youtube.com/watch?v=..." autocomplete="off"><button id="inspectSource" class="primary">Check source ✦</button></div>
           <div id="sourceMessage" class="notice hidden" aria-live="polite"></div>
           <div class="source-meta"><span>Local processing</span><span>2 hour maximum</span><span>YouTube • TikTok • Instagram</span></div>
         </div>
@@ -69,7 +72,7 @@
         <label class="dropzone" for="fileInput"><input id="fileInput" type="file" accept="video/mp4,video/quicktime,video/x-matroska,video/webm,.m4v"><span class="upload-icon">⇧</span><strong>Choose a local video</strong><small>MP4, MOV, MKV, WebM, M4V • stays on this computer</small></label>
         <div id="fileMessage" class="notice hidden" aria-live="polite"></div>
         <div class="dashboard-preview-grid">
-          <article><b>✦ Multi-signal ranking</b><p>Speech meaning, audio energy, visual activity, and replay signals work together.</p></article>
+          <article><b>✦ Multi-signal ranking</b><p>Transcript structure, audio energy, visual activity, and replay signals work together.</p></article>
           <article><b>☾ Qur’an-aware analysis</b><p>Verse-safe recognition is designed to fail safely rather than invent a reference.</p></article>
           <article><b>♡ Built for Somali &amp; Arabic</b><p>Language-specific analysis paths stay first-class instead of being translated into English first.</p></article>
         </div>
@@ -77,36 +80,50 @@
 
       <div class="screen" data-screen="1">
         <div class="panel-title"><span>2.</span><div><h2>AI Understanding</h2><p>Choose the language and analysis path from the AI Settings panel on the right.</p></div></div>
-        <div class="analysis-complete-card"><div class="analysis-heading"><b>Language-aware understanding</b><span>LOCAL</span></div><p>Garden of Jihan can prioritize Somali, Arabic, general multilingual speech, or the Qur’an-aware recognition path.</p><div class="metric-row"><div><strong>SO</strong><small>Somali native scoring</small></div><div><strong>AR</strong><small>Arabic semantic scoring</small></div><div><strong>EN</strong><small>English/general</small></div><div><strong>☾</strong><small>Qur’an-safe mode</small></div></div></div>
+        <div class="analysis-complete-card"><div class="analysis-heading"><b>Language-aware understanding</b><span>LOCAL</span></div><p>Garden of Jihan can prioritize Somali, Arabic, general multilingual speech, or the Qur’an-aware recognition path.</p><div class="metric-row"><div><strong>SO</strong><small>Somali-aware scoring</small></div><div><strong>AR</strong><small>Arabic-aware scoring</small></div><div><strong>EN</strong><small>English/general</small></div><div><strong>☾</strong><small>Qur’an-safe mode</small></div></div></div>
         <div id="modeNote" class="garden-note">Qur’an mode will never invent an ayah or reading when confidence is insufficient.</div>
-        <div class="feature-panels"><article><h3>Meaning first</h3><p>Hooks, emotion, curiosity, payoff, context completeness, and novelty are scored together.</p></article><article><h3>Signal fusion</h3><p>Audio energy and scene changes supplement transcript meaning rather than replacing it.</p></article></div>
+        <div class="feature-panels"><article><h3>Story structure</h3><p>Hooks, emotion, curiosity, payoff, completeness, density, and novelty are scored together.</p></article><article><h3>Signal fusion</h3><p>Audio energy and scene changes supplement transcript evidence rather than replacing it.</p></article></div>
       </div>
 
       <div class="screen" data-screen="2">
         <div class="panel-title"><span>3.</span><div><h2>Clip Recipe</h2><p>Use Output Settings on the right to control aspect ratio, clip count, and timing.</p></div></div>
         <div class="format-showcase"><article><div class="ratio vertical"></div><b>Vertical Shorts</b><small>9:16</small></article><article><div class="ratio landscape"></div><b>Landscape Clips</b><small>16:9</small></article><article><div class="ratio square"></div><b>Square Clips</b><small>1:1</small></article></div>
-        <div class="future-tools"><div><span>✦</span><b>Context protection</b><small>Adjust starts and endings so the idea still makes sense.</small></div><div><span>✦</span><b>Framing control</b><small>Center, left, right, or split-stack vertical exports.</small></div></div>
+        <div class="future-tools"><div><span>✦</span><b>Context protection</b><small>Adjust starts and endings so the idea still makes sense.</small></div><div><span>✦</span><b>Framing control</b><small>Confidence-gated local auto framing plus manual center, side, and split-stack choices.</small></div></div>
       </div>
 
       <div class="screen" data-screen="3">
         <div class="panel-title"><span>4.</span><div><h2>AI Analysis</h2><p>Let the garden identify the moments most worth sharing.</p></div></div>
-        <button id="startAnalysis" class="primary analyze-hero">Start AI Analysis ✦<small>Find the moments that inspire</small></button>
-        <div class="progress-panel"><div class="progress-head"><span id="progressLabel">Ready</span><strong id="progressValue">0%</strong></div><div class="progress-track"><div id="progressBar" class="progress-fill"></div></div><ul class="progress-list"><li id="phase1">Prepare the source</li><li id="phase2">Understand speech</li><li id="phase3">Read audio &amp; visual momentum</li><li id="phase4">Rank distinct strong moments</li></ul></div>
+        <button id="startAnalysis" class="primary analyze-hero" aria-busy="false">Start AI Analysis ✦<small>Find the moments that inspire</small></button>
+        <div class="progress-panel">
+          <div class="progress-head"><span id="progressLabel">Ready</span><strong id="progressValue">0%</strong></div>
+          <div id="analysisGarden" class="analysis-garden" aria-hidden="true"><span class="garden-progress-sun"></span><div class="garden-progress-bed"><span id="growth1" class="growth-stage growth-a"><i></i><b>✿</b></span><span id="growth2" class="growth-stage growth-b"><i></i><b>❀</b></span><span id="growth3" class="growth-stage growth-c"><i></i><b>✾</b></span><span id="growth4" class="growth-stage growth-d"><i></i><b>❁</b></span></div></div>
+          <div id="progressTrack" class="progress-track" role="progressbar" aria-labelledby="progressLabel" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="progressBar" class="progress-fill"></div></div>
+          <ul class="progress-list"><li id="phase1">Prepare the source</li><li id="phase2">Understand speech</li><li id="phase3">Read audio &amp; visual momentum</li><li id="phase4">Rank distinct strong moments</li></ul>
+        </div>
         <div id="analysisError" class="notice error hidden" aria-live="polite"></div>
       </div>
 
       <div class="screen" data-screen="4">
         <div class="section-head"><div class="panel-title compact"><span>5.</span><div><h2>Top Viral Moments</h2><p>Preview, adjust, and keep the strongest clips.</p></div></div><button id="selectStrong" class="secondary">Select score 85+</button></div>
+        <div class="project-editor"><label>Project name<input id="projectName" type="text" maxlength="80" value="Untitled project"></label><button id="saveProject" class="secondary">Save project</button><small id="projectSaveStatus" aria-live="polite">Saved locally after analysis</small></div>
         <video id="sourcePreview" controls preload="metadata"></video>
+        <div id="rankingStatus" class="ranking-status hidden" aria-live="polite"></div>
         <div id="candidateGrid" class="candidate-grid"></div><div id="emptyCandidates" class="garden-note hidden">No candidates are available yet.</div>
       </div>
 
       <div class="screen" data-screen="5">
         <div class="panel-title"><span>6.</span><div><h2>Export Garden</h2><p>Render your selected moments locally with no watermark or credit meter.</p></div></div>
-        <div class="export-summary"><div><small>Selected</small><strong id="selectedCount">0</strong></div><div><small>Format</small><strong id="exportAspect">9:16</strong></div><div><small>Watermark</small><strong>None</strong></div></div>
-        <label class="export-control">Vertical framing<select id="framing"><option value="center" selected>Center crop</option><option value="left">Keep left side</option><option value="right">Keep right side</option><option value="split-stack">Split &amp; stack both sides</option></select><small>Framing changes vertical 9:16 exports. Other formats keep their normal crop.</small></label>
-        <button id="renderClips" class="primary analyze-hero">Export Selected Clips ✦<small>Render locally with bundled FFmpeg</small></button>
+        <div class="export-summary"><div><small>Selected</small><strong id="selectedCount">0</strong></div><div><small>Format</small><strong id="exportAspect">9:16</strong></div><div><small>Captions</small><strong id="exportCaptions">Off</strong></div><div><small>Watermark</small><strong>None</strong></div></div>
+        <label class="export-control">Vertical framing<select id="framing"><option value="auto" selected>Auto speaking face (beta)</option><option value="center">Center crop</option><option value="left">Keep left side</option><option value="right">Keep right side</option><option value="split-stack">Split &amp; stack both sides</option></select><small>Auto uses local face position, mouth motion, and audio activity only when confident. It returns to center when uncertain and never identifies a person. Manual choices remain available.</small></label>
+        <div class="caption-controls">
+          <label>Transcript captions<select id="captions"><option value="off" selected>Off</option><option value="segments">Burn in timed segments</option><option value="words">Acoustic word highlight (beta)</option></select></label>
+          <label>Caption style<select id="captionStyle"><option value="garden" selected>Garden cream</option><option value="high-contrast">High contrast</option><option value="minimal">Minimal</option></select></label>
+          <label>Position<select id="captionPosition"><option value="bottom" selected>Bottom</option><option value="middle">Middle</option><option value="top">Top</option></select></label>
+        </div>
+        <p class="caption-safety">Word highlights use local speech-model timestamps. Qur’an captions render only from checksum-verified reference words after complete text alignment and conservative acoustic confidence checks; timing remains model-estimated, and Qira’at is never assessed.</p>
+        <button id="renderClips" class="primary analyze-hero" aria-busy="false">Export Selected Clips ✦<small>Render locally with bundled FFmpeg</small></button>
         <div id="exportMessage" class="notice hidden" aria-live="polite"></div><div id="downloadList" class="downloads"></div>
+        <section class="publish-panel"><div class="publish-head"><div><h3>Official publishing</h3><p>Publishing is optional and is the only time an exported clip leaves this computer.</p></div><span id="youtubeStatus">YouTube not connected</span></div><details class="youtube-setup"><summary>YouTube OAuth setup</summary><p>Install a Google OAuth <b>Desktop app</b> client JSON for a YouTube Data API project. Garden of Jihan stores it with Windows user encryption and requests upload-only permission. Public apps still require Google verification; unverified API projects can be restricted to private uploads.</p><div class="publish-row"><input id="youtubeClientFile" type="file" accept="application/json,.json"><button id="installYoutubeClient" class="secondary">Install client</button><button id="connectYoutube" class="secondary">Connect YouTube</button><button id="disconnectYoutube" class="secondary">Forget connection</button></div></details><div class="publish-form"><label>Rendered clip<select id="publishFile"><option value="">Export a clip first</option></select></label><label>Title<input id="youtubeTitle" type="text" maxlength="100" placeholder="Clip title"></label><label class="wide">Description<textarea id="youtubeDescription" maxlength="5000" rows="3" placeholder="Optional description"></textarea></label><label>Visibility<select id="youtubePrivacy"><option value="private" selected>Private (recommended)</option><option value="unlisted">Unlisted</option><option value="public">Public</option></select></label><label>Made for kids?<select id="youtubeKids"><option value="" selected>Choose (required)</option><option value="yes">Yes</option><option value="no">No</option></select></label><label>Realistic altered/synthetic media?<select id="youtubeSynthetic"><option value="" selected>Choose (required)</option><option value="yes">Yes</option><option value="no">No</option></select></label></div><button id="publishYoutube" class="primary" aria-busy="false">Upload through YouTube API</button><div id="publishMessage" class="notice hidden" aria-live="polite"></div><div class="tiktok-gate"><b>TikTok Direct Post unavailable</b><span id="tiktokStatus">Requires an audited TikTok Content Posting API client and supported secure OAuth backend.</span></div></section>
       </div>
 
       <footer class="nav-row"><button id="backStep" class="secondary">← Back</button><span id="stepCount">Step 1 of 6</span><button id="nextStep" class="primary">Next →</button></footer>
@@ -115,14 +132,22 @@
     <aside class="settings-panel glass-panel">
       <div class="settings-title"><b>✦ AI Settings</b><span>Local</span></div>
       <section class="setting-group"><h3>Language Priority</h3><label class="toggle-row"><span>◎ Auto detect</span><input type="radio" name="mode" value="auto" checked></label><label class="toggle-row"><span>★ Somali</span><input type="radio" name="mode" value="somali"></label><label class="toggle-row"><span>ع Arabic</span><input type="radio" name="mode" value="arabic"></label><label class="toggle-row"><span>☾ Qur’an</span><input type="radio" name="mode" value="quran"></label></section>
-      <section class="setting-group"><h3>Viral Scoring Factors</h3><div class="score-factor"><span>Emotional Impact</span><b>30%</b><i style="--w:76%"></i></div><div class="score-factor"><span>Hook Strength</span><b>25%</b><i style="--w:67%"></i></div><div class="score-factor"><span>Context &amp; Payoff</span><b>20%</b><i style="--w:61%"></i></div><div class="score-factor"><span>Visual Momentum</span><b>15%</b><i style="--w:53%"></i></div></section>
+      <section class="setting-group quran-reference-group">
+        <h3>Qur’an Reference</h3>
+        <div id="quranReferenceStatus" class="reference-status checking"><span></span><div><b>Checking local reference…</b><small>Surah/Ayah recognition stays disabled until the reviewed reference passes its checksum.</small></div></div>
+        <a class="reference-source" href="https://tanzil.net/download/" target="_blank" rel="noreferrer">Open official Tanzil download ↗</a>
+        <label class="reference-upload" for="quranReferenceFile"><input id="quranReferenceFile" type="file" accept=".txt,.text,text/plain"><b>Install reviewed Tanzil 1.1 .txt</b><small>Keep the default Simple options and choose Text (with aya numbers). Garden of Jihan verifies all coordinates and a pinned SHA-256.</small></label>
+        <div id="quranReferenceMessage" class="notice hidden" aria-live="polite"></div>
+      </section>
+      <section class="setting-group"><h3>Base Ranking Mix</h3><div class="score-factor"><span>Hook &amp; curiosity</span><b>34%</b><i style="--w:34%"></i></div><div class="score-factor"><span>Payoff &amp; completeness</span><b>30%</b><i style="--w:30%"></i></div><div class="score-factor"><span>Emotion, density &amp; novelty</span><b>24%</b><i style="--w:24%"></i></div><div class="score-factor"><span>Audio, visual &amp; replay</span><b>12%</b><i style="--w:12%"></i></div><p class="scoring-note">General, Somali, and Arabic base weights. Qur’an mode uses a separate pause-and-completeness mix.</p></section>
       <section class="setting-group output-settings"><h3>Output Settings</h3><label>Format<select id="aspect"><option value="9:16">Vertical (9:16)</option><option value="16:9">Landscape (16:9)</option><option value="1:1">Square (1:1)</option></select></label><label>Min Clip Length<select id="minSeconds"><option value="15">15 seconds</option><option value="20" selected>20 seconds</option><option value="30">30 seconds</option></select></label><label>Max Clip Length<select id="maxSeconds"><option value="60">60 seconds</option><option value="75" selected>75 seconds</option><option value="90">90 seconds</option></select></label><label>Clip Count<select id="maxClips"><option>5</option><option selected>10</option><option>15</option><option>20</option></select></label></section>
       <div class="settings-foot"><span>100% local analysis</span><span>No telemetry by default</span></div>
     </aside>
   </main>
 
-  <div class="bottom-promises"><div><b>♙ 100% LOCAL</b><span>Your data stays on your device.</span></div><div><b>♢ PRIVATE &amp; SECURE</b><span>No cloud upload required.</span></div><div><b>☾ QUR’AN AWARE</b><span>Reference-backed safe path.</span></div><div><b>✦ ARABIC &amp; SOMALI AI</b><span>Native-language analysis.</span></div></div>
+  <div class="bottom-promises"><div><b>♙ 100% LOCAL</b><span>Your data stays on your device.</span></div><div><b>♢ PRIVATE &amp; SECURE</b><span>No cloud upload required.</span></div><div><b>☾ QUR’AN AWARE</b><span>Reference-backed safe path.</span></div><div><b>✦ ARABIC &amp; SOMALI AI</b><span>Language-aware local paths.</span></div></div>
 
   <script src="/static/app.js" defer></script>
+  <script src="/static/quran-reference.js" defer></script>
 </body>
 </html>
