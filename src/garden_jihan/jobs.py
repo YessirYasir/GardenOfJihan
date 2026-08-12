@@ -582,6 +582,40 @@ class JobManager:
             if job.status == "complete"
         ]
 
+    def list_top_moments(self, limit: int = 12) -> list[dict]:
+        """Return the strongest saved moments across completed projects.
+
+        The dashboard shelf is reconstructed from project manifests, so it grows
+        naturally as work is completed and never relies on placeholder content.
+        """
+        bounded_limit = max(1, min(limit, 30))
+        with self._lock:
+            moments: list[dict] = []
+            for job in self._jobs.values():
+                if job.status != "complete":
+                    continue
+                selected_ids = set(job.project.selected_ids)
+                source_available = bool(job.source_path and job.source_path.exists())
+                for candidate in job.candidates:
+                    boundary = job.project.boundaries.get(candidate.id)
+                    moments.append(
+                        {
+                            "id": candidate.id,
+                            "project_id": job.id,
+                            "project_name": job.project.name,
+                            "updated_at": job.updated_at.isoformat(),
+                            "source_available": source_available,
+                            "selected": candidate.id in selected_ids,
+                            "title": candidate.title,
+                            "start": boundary.start if boundary else candidate.start,
+                            "end": boundary.end if boundary else candidate.end,
+                            "score": candidate.score,
+                            "mode": candidate.mode.value,
+                        }
+                    )
+        moments.sort(key=lambda moment: (moment["score"], moment["updated_at"]), reverse=True)
+        return moments[:bounded_limit]
+
     def update_project(self, job_id: str, project: ProjectReview) -> JobState:
         job = self.get(job_id)
         if job.status != "complete":
