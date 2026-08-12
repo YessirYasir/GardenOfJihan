@@ -1,0 +1,86 @@
+name: Private portable browser validation
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'scripts/build-portable-browser.ps1'
+      - 'scripts/verify-portable-bundle.ps1'
+      - 'scripts/smoke-portable-browser.ps1'
+      - 'scripts/portable/**'
+      - 'requirements-portable-windows.txt'
+      - 'pyproject.toml'
+      - 'README.md'
+      - 'PRIVACY.md'
+      - 'CODE_SIGNING.md'
+      - 'THIRD-PARTY-NOTICES.md'
+      - '.github/workflows/portable-browser.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-portable-browser:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements-portable-windows.txt
+
+      - name: Build no-install portable browser bundle
+        shell: pwsh
+        run: .\scripts\build-portable-browser.ps1
+
+      - name: Verify the exact ZIP contents
+        shell: pwsh
+        run: |
+          Expand-Archive `
+            -LiteralPath "dist\GardenOfJihan-Portable-Browser-Windows-x64.zip" `
+            -DestinationPath "dist\portable-extracted" `
+            -Force
+          .\scripts\verify-portable-bundle.ps1 -PackageRoot "dist\portable-extracted"
+
+      - name: Smoke-test styled captions
+        shell: pwsh
+        run: .\scripts\smoke-captions.ps1 -FfmpegPath "dist\portable-extracted\runtime\bin\ffmpeg.exe"
+
+      - name: Smoke-test dynamic vertical framing
+        shell: pwsh
+        run: .\scripts\smoke-auto-framing.ps1 -FfmpegPath "dist\portable-extracted\runtime\bin\ffmpeg.exe"
+
+      - name: Smoke-test one-click launcher, UI, onboarding, and shutdown
+        shell: pwsh
+        run: .\scripts\smoke-portable-browser.ps1 -PackageRoot "dist\portable-extracted"
+
+      - name: Scan exact portable ZIP contents with Microsoft Defender
+        shell: pwsh
+        run: |
+          $platformRoot = Join-Path $env:ProgramData "Microsoft\Windows Defender\Platform"
+          $mpCmdRun = $null
+          if (Test-Path $platformRoot) {
+            $latest = Get-ChildItem $platformRoot -Directory | Sort-Object Name -Descending | Select-Object -First 1
+            if ($latest) { $mpCmdRun = Join-Path $latest.FullName "MpCmdRun.exe" }
+          }
+          if (-not $mpCmdRun -or -not (Test-Path $mpCmdRun)) {
+            $fallback = Join-Path $env:ProgramFiles "Windows Defender\MpCmdRun.exe"
+            if (Test-Path $fallback) { $mpCmdRun = $fallback }
+          }
+          if (-not $mpCmdRun -or -not (Test-Path $mpCmdRun)) { throw "Microsoft Defender scanner is unavailable" }
+          $target = (Resolve-Path "dist\portable-extracted").Path
+          & $mpCmdRun -Scan -ScanType 3 -File $target
+          if ($LASTEXITCODE -ne 0) { throw "Microsoft Defender scan did not return a clean result (exit code $LASTEXITCODE)" }
+
+      - name: Upload short-lived private test handoff
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v7
+        with:
+          name: GardenOfJihan-Private-Portable-Browser
+          path: |
+            dist/GardenOfJihan-Portable-Browser-Windows-x64.zip
+            dist/GardenOfJihan-Portable-Browser-Windows-x64.sha256
+          if-no-files-found: error
+          retention-days: 2

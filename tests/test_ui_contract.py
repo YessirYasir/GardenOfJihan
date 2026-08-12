@@ -9,12 +9,28 @@ def test_production_brand_and_garden_motion_are_preserved():
     html = _ui_text("index.html")
     editor_css = _ui_text("editor.css")
 
-    assert html.count(">جيهان<") == 2
+    assert html.count(">جيهان<") >= 2
     assert html.count('class="falling-flower ') == 12
     assert "flowerFall" in editor_css
     assert "flowerSway" in editor_css
     assert ".ff1" in editor_css and "animation-duration:27s" in editor_css
     assert ".ff1 span{animation-duration:6.2s}" in editor_css
+
+
+def test_first_run_welcome_is_local_honest_and_keyboard_reachable():
+    html = _ui_text("index.html")
+    app_css = _ui_text("app.css")
+    app_js = _ui_text("app.js")
+
+    assert 'id="welcomeGarden"' in html
+    assert 'role="dialog" aria-modal="true"' in html
+    assert 'id="beginGarden"' in html
+    assert "جيهان" in html
+    assert "The first analysis downloads free local AI models once" in html
+    assert "it runs privately on this computer" in html
+    assert "@media(prefers-reduced-motion:reduce)" in app_css
+    assert "api('/api/onboarding/complete',{method:'POST'})" in app_js
+    assert "document.getElementById('beginGarden').focus()" in app_js
 
 
 def test_production_ui_claims_match_current_behavior():

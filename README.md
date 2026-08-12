@@ -12,6 +12,21 @@ The application itself is already building and launching successfully on clean W
 
 Once the signed release is ready, this section will become the main one-click install/download entry point. End users will not need Python, FFmpeg, Git, a subscription, credits, or a paid AI API.
 
+### Private no-install browser handoff
+
+For supervised private testing before trusted Garden of Jihan signing is approved, the repository can produce a separate **portable browser bundle**. The recipient extracts one ZIP and double-clicks `START GARDEN OF JIHAN.cmd`; the normal browser opens the same rich local garden dashboard. Python, the local AI dependencies, FFmpeg, and ffprobe are contained inside the folder. Nothing is installed system-wide, administrator access is not requested, and the server remains bound only to `127.0.0.1`.
+
+This is deliberately not a public executable release. It contains no custom unsigned `GardenOfJihan.exe`; the invisible runtime executables are the checksum-pinned official Python 3.12.10 binaries with a valid Python Software Foundation signature. Its dependency set is hash locked, the complete folder has a SHA-256 file manifest, and the exact ZIP is exercised through launcher, onboarding, UI, caption, framing, shutdown, and Microsoft Defender checks. A manually dispatched CI artifact is retained for only two days and is intended for direct private handoff by the maintainer.
+
+Build it on Windows with Python 3.12 available to the build process:
+
+```powershell
+.\scripts\build-portable-browser.ps1 -PythonExecutable .\.venv\Scripts\python.exe
+.\scripts\smoke-portable-browser.ps1 -PackageRoot .\dist\GardenOfJihan-Portable
+```
+
+The resulting handoff is `dist\GardenOfJihan-Portable-Browser-Windows-x64.zip`. Public distribution continues to require the trusted Authenticode-gated application release.
+
 The first AI analysis downloads the local Whisper model and multilingual meaning model once and caches them on that PC. Video analysis and rendering then run locally. If the meaning model is unavailable, the UI reports its base-ranking fallback; it never uploads transcripts to a paid or cloud fallback.
 
 The project is designed around four principles:

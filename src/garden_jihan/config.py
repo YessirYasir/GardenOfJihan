@@ -21,3 +21,7 @@ class Settings:
     @property
     def quran_reference(self) -> Path:
         return self.app_data / "reference" / "quran_reference.json"
+
+    @property
+    def onboarding_complete(self) -> Path:
+        return self.app_data / "onboarding-complete"

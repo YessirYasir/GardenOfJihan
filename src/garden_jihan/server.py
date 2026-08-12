@@ -3,6 +3,7 @@ from __future__ import annotations
 import html
 import json
 import logging
+import os
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -137,10 +138,25 @@ def create_app(
         return {
             "ok": True,
             "local": True,
+            "product": "garden-of-jihan",
             "version": "0.1.0",
+            "distribution": os.getenv("GOJ_DISTRIBUTION", "desktop"),
+            "first_run": not settings.onboarding_complete.is_file(),
             "auto_framing_available": auto_framing_available,
             "credential_protection_available": credential_protection_available(),
         }
+
+    @app.post("/api/onboarding/complete")
+    async def complete_onboarding():
+        try:
+            settings.onboarding_complete.parent.mkdir(parents=True, exist_ok=True)
+            settings.onboarding_complete.write_text("complete\n", encoding="utf-8")
+        except OSError as exc:
+            raise HTTPException(
+                status_code=507,
+                detail="First-run preference could not be saved locally",
+            ) from exc
+        return {"complete": True}
 
     @app.post("/api/app/quit", status_code=202)
     async def quit_app(background_tasks: BackgroundTasks):

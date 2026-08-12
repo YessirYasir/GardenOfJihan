@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import http.client
 import logging
 import os
 import socket
@@ -68,6 +69,24 @@ def _show_startup_error(message: str) -> None:
         LOGGER.exception("Could not display startup error dialog")
 
 
+def _open_ui_when_ready(port: int, timeout_seconds: float = 30.0) -> None:
+    """Open the browser only after the loopback server answers its health check."""
+    origin = f"http://127.0.0.1:{port}"
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        connection = http.client.HTTPConnection("127.0.0.1", port, timeout=0.5)
+        try:
+            connection.request("GET", "/api/health")
+            if connection.getresponse().status == 200:
+                webbrowser.open(f"{origin}/")
+                return
+        except OSError:
+            time.sleep(0.15)
+        finally:
+            connection.close()
+    LOGGER.error("Local interface did not become ready for the browser in %.1f seconds", timeout_seconds)
+
+
 def run() -> None:
     settings = Settings()
     _configure_logging(settings)
@@ -85,11 +104,7 @@ def run() -> None:
     LOGGER.info("Starting local interface on 127.0.0.1:%s", port)
 
     if os.getenv("GOJ_NO_BROWSER", "0") != "1":
-        def open_ui():
-            time.sleep(0.8)
-            webbrowser.open(f"http://127.0.0.1:{port}/")
-
-        threading.Thread(target=open_ui, daemon=True).start()
+        threading.Thread(target=_open_ui_when_ready, args=(port,), daemon=True).start()
 
     config = uvicorn.Config(
         app=app,

@@ -16,6 +16,12 @@ Required acknowledgement once approved:
 
 Until trusted signing is active, the project will not publish or recommend an unsigned Windows executable. Unsigned CI artifacts are internal validation outputs only.
 
+## Private portable browser boundary
+
+The temporary private-testing handoff is not a public executable release. It contains no custom `GardenOfJihan.exe`; a plain launcher script starts checksum-pinned official Python binaries whose Authenticode signature must validate to the Python Software Foundation during the build and verification jobs. The complete portable folder is hash-manifested, smoke-tested from the exact ZIP contents, scanned with Microsoft Defender, and retained as a manually dispatched CI artifact for two days only.
+
+This narrow handoff does not weaken the public release rule. It must not be promoted as the final Windows application, uploaded to GitHub Releases, or substituted for Garden of Jihan’s own trusted publisher identity. Public distribution remains blocked until the normal release package passes the existing trusted Authenticode gate.
+
 ## Roles
 
 - Committer and reviewer: `YessirYasir`
