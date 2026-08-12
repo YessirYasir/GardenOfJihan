@@ -323,6 +323,10 @@ def create_app(
     async def projects():
         return {"projects": app.state.jobs.list_projects()}
 
+    @app.get("/api/moments")
+    async def top_moments():
+        return {"moments": app.state.jobs.list_top_moments()}
+
     @app.put("/api/jobs/{job_id}/project")
     async def update_project(job_id: str, payload: ProjectReviewRequest):
         try:

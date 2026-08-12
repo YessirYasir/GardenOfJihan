@@ -536,12 +536,26 @@ def test_project_review_list_resume_and_remove_are_local_and_validated(tmp_path)
     with TestClient(app, base_url="http://127.0.0.1:8765") as client:
         saved = client.put(f"/api/jobs/{job.id}/project", headers=headers, json=payload)
         projects = client.get("/api/projects")
+        moments = client.get("/api/moments")
         resumed = client.get(f"/api/jobs/{job.id}")
         removed = client.delete(f"/api/projects/{job.id}", headers=headers)
 
     assert saved.status_code == 200
     assert saved.json()["project"]["name"] == "My local project"
     assert projects.json()["projects"][0]["selected_count"] == 1
+    assert moments.json()["moments"][0] == {
+        "id": "candidate123",
+        "project_id": job.id,
+        "project_name": "My local project",
+        "updated_at": moments.json()["moments"][0]["updated_at"],
+        "source_available": True,
+        "selected": True,
+        "title": "Strong moment",
+        "start": 9.0,
+        "end": 13.5,
+        "score": 90.0,
+        "mode": "general",
+    }
     assert resumed.json()["project"]["boundaries"]["candidate123"] == {
         "start": 9.0,
         "end": 13.5,

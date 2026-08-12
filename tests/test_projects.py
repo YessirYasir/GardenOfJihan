@@ -76,6 +76,34 @@ def test_completed_project_round_trips_local_review_and_analysis_state(tmp_path)
     assert restored_manager.list_projects()[0]["source_available"] is True
 
 
+def test_top_moments_grow_from_saved_projects_and_honor_reviewed_boundaries(tmp_path):
+    manager = JobManager(Settings(app_data=tmp_path))
+    first = _completed_project(manager)
+    manager.update_project(
+        first.id,
+        ProjectReview(
+            name="Sheeko One",
+            selected_ids=["clip123"],
+            boundaries={"clip123": ClipBoundaryOverride(start=6.0, end=16.5)},
+        ),
+    )
+    second = _completed_project(manager)
+    second.project = ProjectReview(name="Sheeko Two")
+    second.candidates[0] = second.candidates[0].model_copy(
+        update={"id": "clip456", "score": 97.0, "title": "Moment labaad"}
+    )
+
+    moments = manager.list_top_moments()
+
+    assert [moment["id"] for moment in moments] == ["clip456", "clip123"]
+    assert moments[0]["project_id"] == second.id
+    assert moments[0]["project_name"] == "Sheeko Two"
+    assert moments[1]["selected"] is True
+    assert moments[1]["start"] == 6.0
+    assert moments[1]["end"] == 16.5
+    assert moments[1]["source_available"] is True
+
+
 def test_restored_project_rejects_source_path_escape(tmp_path):
     settings = Settings(app_data=tmp_path)
     manager = JobManager(settings)
