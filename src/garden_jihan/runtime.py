@@ -35,7 +35,7 @@ def find_tool(name: str) -> str:
         return found
     raise RuntimeError(
         f"{name} is required but was not found. Use an official Garden of Jihan "
-        "Windows release or install FFmpeg and make sure it is on PATH."
+        "release for your computer or install FFmpeg and make sure it is on PATH."
     )
 
 

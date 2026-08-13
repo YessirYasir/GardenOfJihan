@@ -163,7 +163,7 @@ def create_app(
         if shutdown_callback is None:
             raise HTTPException(
                 status_code=409,
-                detail="App shutdown is available only from the Windows desktop launcher",
+                detail="App shutdown is available only from the desktop launcher",
             )
         if app.state.jobs.has_active_work():
             raise HTTPException(status_code=409, detail="Wait for local analysis to finish")

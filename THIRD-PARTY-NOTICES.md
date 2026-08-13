@@ -21,6 +21,17 @@ The Windows ZIP also contains `FFMPEG-LICENSE.txt` and
 `FFMPEG-BUILD-INFO.txt`, copied unchanged from the checksum-verified binary
 archive.
 
+The Mac packages bundle native `ffmpeg` and `ffprobe` 8.1.2 binaries from the
+Shaka Project static FFmpeg release `n8.1.2-1`. Each architecture is downloaded
+from its immutable release URL and verified against a pinned SHA256 before it
+is included.
+
+- Binary release: https://github.com/shaka-project/static-ffmpeg-binaries/releases/tag/n8.1.2-1
+- FFmpeg Apple Silicon SHA256: `e7b9fcd97f95f333512d6e8b8ac24d9dbc08f189f36047695499bd7b57214b22`
+- FFprobe Apple Silicon SHA256: `ded4c698b8ff38d0bc1fd30fcc5e768dc46f58bc15a8dfd61f98615ba49cde5c`
+- FFmpeg Intel SHA256: `62c87854d851f202fc4a29bdda0fe7b6ebcddd37b863482ce1bdc81151b03fe4`
+- FFprobe Intel SHA256: `d530823f480a3c7eb6334f18a00197d1e9f1070e86172b9aa89c4bf4022bd879`
+
 ## Python embedded runtime
 
 The private portable browser bundle contains the official CPython 3.12.10

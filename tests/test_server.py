@@ -84,7 +84,7 @@ def test_quit_endpoint_is_not_available_outside_desktop_launcher(tmp_path):
         response = client.post("/api/app/quit", headers=headers)
 
     assert response.status_code == 409
-    assert "Windows desktop launcher" in response.json()["detail"]
+    assert "desktop launcher" in response.json()["detail"]
 
 
 def test_uploaded_source_is_idle_until_analysis_starts(tmp_path):

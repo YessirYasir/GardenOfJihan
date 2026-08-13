@@ -90,8 +90,14 @@ def _open_ui_when_ready(port: int, timeout_seconds: float = 30.0) -> None:
 
 def run() -> None:
     if getattr(sys, "frozen", False):
-        model_root = Path(sys.executable).resolve().parent / "models"
-        if model_root.is_dir():
+        frozen_root = Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent))
+        model_candidates = (
+            frozen_root / "models",
+            Path(sys.executable).resolve().parent / "models",
+            Path(sys.executable).resolve().parent.parent / "Resources" / "models",
+        )
+        model_root = next((candidate for candidate in model_candidates if candidate.is_dir()), None)
+        if model_root is not None:
             os.environ.setdefault("GOJ_SPEECH_MODEL_PATH", str(model_root / "speech"))
             os.environ.setdefault("GOJ_MEANING_MODEL_PATH", str(model_root / "meaning"))
             os.environ.setdefault(

@@ -6,7 +6,7 @@ from urllib.parse import parse_qs, urlsplit
 import pytest
 
 from garden_jihan.publish import youtube as youtube_module
-from garden_jihan.publish.credentials import ProtectedJsonStore
+from garden_jihan.publish.credentials import MacOSKeychainProtector, ProtectedJsonStore
 from garden_jihan.publish.youtube import (
     PublishingNotConfigured,
     YouTubePublisher,
@@ -219,3 +219,46 @@ def test_windows_dpapi_store_round_trip_does_not_write_plaintext(tmp_path):
 
     assert store.load()["tokens"]["refresh_token"] == expected
     assert expected.encode() not in (tmp_path / "youtube.bin").read_bytes()
+
+
+def test_macos_keychain_protector_keeps_secret_out_of_reference():
+    class MemoryKeychain:
+        def __init__(self):
+            self.values = {}
+
+        def write(self, service, account, value):
+            self.values[(service, account)] = value
+
+        def read(self, service, account):
+            return self.values[(service, account)]
+
+        def delete(self, service, account):
+            self.values.pop((service, account), None)
+
+    keychain = MemoryKeychain()
+    protector = MacOSKeychainProtector("test-account", keychain=keychain)
+    secret = b"macbook-sensitive-token"
+
+    marker = protector.protect(secret)
+
+    assert secret not in marker
+    assert protector.unprotect(marker) == secret
+    protector.clear()
+    assert keychain.values == {}
+
+
+def test_macos_keychain_protector_rejects_a_different_reference():
+    class MemoryKeychain:
+        def write(self, *_args):
+            pass
+
+        def read(self, *_args):
+            return b"secret"
+
+        def delete(self, *_args):
+            pass
+
+    protector = MacOSKeychainProtector("expected", keychain=MemoryKeychain())
+
+    with pytest.raises(ValueError, match="reference is invalid"):
+        protector.unprotect(b"garden-of-jihan-keychain-v1:other")

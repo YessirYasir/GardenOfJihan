@@ -1,0 +1,161 @@
+name: macOS build
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'scripts/build-macos.sh'
+      - 'scripts/package-macos.py'
+      - 'scripts/sign-notarize-macos.sh'
+      - 'scripts/smoke-macos-media.py'
+      - 'scripts/smoke-macos-package.py'
+      - 'scripts/verify-macos-package.py'
+      - 'scripts/macos/**'
+      - 'scripts/macos-entitlements.plist'
+      - 'requirements-macos-constraints.txt'
+      - 'pyproject.toml'
+      - 'README.md'
+      - 'PRIVACY.md'
+      - 'CODE_SIGNING.md'
+      - 'THIRD-PARTY-NOTICES.md'
+      - '.github/workflows/macos-build.yml'
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            architecture: arm64
+            label: Apple-Silicon
+          - runner: macos-15-intel
+            architecture: x86_64
+            label: Intel
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements-macos-constraints.txt
+
+      - name: Build self-contained Mac application
+        shell: bash
+        run: ./scripts/build-macos.sh
+
+      - name: Run Mac unit and dependency security checks
+        shell: bash
+        run: |
+          python3 -m pytest -q
+          python3 -m ruff check src tests scripts
+          python3 -m bandit -q -r src scripts -ll
+          python3 -m pip_audit
+
+      - name: Create private validation archive
+        shell: bash
+        run: |
+          python3 scripts/package-macos.py \
+            --package-root "dist/GardenOfJihan-macOS-${{ matrix.label }}" \
+            --archive "dist/GardenOfJihan-macOS-${{ matrix.label }}.zip"
+
+      - name: Verify exact Mac package
+        shell: bash
+        run: |
+          python3 scripts/verify-macos-package.py \
+            --package-root "dist/GardenOfJihan-macOS-${{ matrix.label }}" \
+            --architecture "${{ matrix.architecture }}"
+
+      - name: Smoke-test styled captions and vertical framing
+        shell: bash
+        run: |
+          python3 scripts/smoke-macos-media.py \
+            --package-root "dist/GardenOfJihan-macOS-${{ matrix.label }}"
+
+      - name: Smoke-test app, Keychain, browser UI, and clean shutdown
+        shell: bash
+        run: |
+          python3 scripts/smoke-macos-package.py \
+            --package-root "dist/GardenOfJihan-macOS-${{ matrix.label }}"
+
+      - name: Sign, notarize, and staple public Mac package
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GOJ_APPLE_CERTIFICATE_BASE64: ${{ secrets.GOJ_APPLE_CERTIFICATE_BASE64 }}
+          GOJ_APPLE_CERTIFICATE_PASSWORD: ${{ secrets.GOJ_APPLE_CERTIFICATE_PASSWORD }}
+          GOJ_APPLE_SIGNING_IDENTITY: ${{ secrets.GOJ_APPLE_SIGNING_IDENTITY }}
+          GOJ_APPLE_ID: ${{ secrets.GOJ_APPLE_ID }}
+          GOJ_APPLE_TEAM_ID: ${{ secrets.GOJ_APPLE_TEAM_ID }}
+          GOJ_APPLE_APP_PASSWORD: ${{ secrets.GOJ_APPLE_APP_PASSWORD }}
+        run: |
+          ./scripts/sign-notarize-macos.sh \
+            "dist/GardenOfJihan-macOS-${{ matrix.label }}" \
+            "dist/GardenOfJihan-macOS-${{ matrix.label }}.zip"
+
+      - name: Enforce Developer ID and notarization for public package
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          python3 scripts/verify-macos-package.py \
+            --package-root "dist/GardenOfJihan-macOS-${{ matrix.label }}" \
+            --architecture "${{ matrix.architecture }}" \
+            --require-notarized
+
+      - name: Upload private Mac handoff
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v7
+        with:
+          name: GardenOfJihan-Private-macOS-${{ matrix.label }}
+          path: |
+            dist/GardenOfJihan-macOS-${{ matrix.label }}.zip
+            dist/GardenOfJihan-macOS-${{ matrix.label }}.sha256
+          if-no-files-found: error
+          retention-days: 2
+
+      - name: Upload notarized Mac release artifact
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v7
+        with:
+          name: GardenOfJihan-macOS-${{ matrix.label }}
+          path: |
+            dist/GardenOfJihan-macOS-${{ matrix.label }}.zip
+            dist/GardenOfJihan-macOS-${{ matrix.label }}.sha256
+          if-no-files-found: error
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: GardenOfJihan-macOS-*
+          path: release
+          merge-multiple: true
+      - name: Add notarized Mac packages to the trusted release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          for attempt in $(seq 1 60); do
+            if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              gh release upload "$GITHUB_REF_NAME" release/* \
+                --repo "$GITHUB_REPOSITORY" \
+                --clobber
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "The signed Windows release was not created in time; refusing a separate uncoordinated Mac release." >&2
+          exit 1

@@ -1,6 +1,6 @@
 # Code signing policy
 
-Garden of Jihan is an MIT-licensed open-source Windows application maintained in the public `YessirYasir/GardenOfJihan` repository.
+Garden of Jihan is an MIT-licensed open-source Windows and macOS application maintained in the public `YessirYasir/GardenOfJihan` repository.
 
 ## Goal
 
@@ -15,6 +15,12 @@ Required acknowledgement once approved:
 > Free code signing provided by SignPath.io, certificate by SignPath Foundation.
 
 Until trusted signing is active, the project will not publish or recommend an unsigned Windows executable. Unsigned CI artifacts are internal validation outputs only.
+
+## Apple signing and notarization
+
+Public Mac packages must be built on the matching GitHub-hosted Mac architecture, signed with an Apple-issued Developer ID Application certificate using the hardened runtime, submitted successfully with `notarytool`, stapled with the accepted notarization ticket, and accepted by Gatekeeper. The release workflow builds and smokes both Apple Silicon and Intel packages independently.
+
+The Apple certificate, certificate password, signing identity, account identifier, team identifier, and app-specific notarization password are repository secrets. They must never be committed, printed, embedded in an artifact, or exposed to pull-request builds. If any value is unavailable, the public Mac job fails instead of producing a release. Ad-hoc-signed pull-request and manually dispatched artifacts are private validation outputs only and are retained for two days.
 
 ## Private portable browser boundary
 
@@ -45,6 +51,16 @@ A public executable release must:
 10. Verify that the two signed executables are byte-for-byte identical before publication.
 11. Be manually approved for trusted code signing when SignPath signing is available.
 
+A public Mac application release must additionally:
+
+1. Build separate native Apple Silicon and Intel packages on GitHub-hosted Mac runners.
+2. Include checksum-pinned FFmpeg and ffprobe binaries for the matching architecture.
+3. Include the verified speech, meaning, and complete reviewed Qur'an resources.
+4. Pass package integrity, architecture, captions, vertical framing, local UI, Keychain, Qur'an guide, and clean-shutdown smoke tests.
+5. Use a valid Developer ID Application signature with hardened runtime and secure timestamp.
+6. Pass Apple notarization, ticket stapling validation, and Gatekeeper assessment.
+7. Publish SHA-256 checksums and only attach the notarized artifacts to a trusted tagged release.
+
 ## Privacy
 
 See [`PRIVACY.md`](PRIVACY.md).
@@ -53,7 +69,7 @@ Garden of Jihan does not transfer usage analytics, crash telemetry, transcripts,
 
 ## System changes
 
-The portable Windows build does not require administrator privileges and does not silently modify Windows security settings, firewall configuration, Defender exclusions, browser settings, or trusted certificate stores.
+The portable Windows and Mac builds do not require administrator privileges and do not silently modify operating-system security settings, firewall configuration, malware-scanner exclusions, browser settings, or trusted certificate stores. On macOS, publishing credentials use the current user's Keychain.
 
 ## Uninstallation
 
