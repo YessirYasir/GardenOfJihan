@@ -21,16 +21,19 @@ The Windows ZIP also contains `FFMPEG-LICENSE.txt` and
 `FFMPEG-BUILD-INFO.txt`, copied unchanged from the checksum-verified binary
 archive.
 
-The Mac packages bundle native `ffmpeg` and `ffprobe` 8.1.2 binaries from the
-Shaka Project static FFmpeg release `n8.1.2-1`. Each architecture is downloaded
-from its immutable release URL and verified against a pinned SHA256 before it
-is included.
+The Mac packages bundle native `ffmpeg` and `ffprobe` binaries from the
+eugeneware static FFmpeg release `b6.1.1`, whose Mac builds include libass for
+styled subtitle rendering. Each architecture and its accompanying license are
+downloaded through HTTPS and accepted only after their exact SHA256 digests
+match the values pinned in `scripts/build-macos.sh`. `FFMPEG-LICENSE.txt` is
+included in every Mac handoff.
 
-- Binary release: https://github.com/shaka-project/static-ffmpeg-binaries/releases/tag/n8.1.2-1
-- FFmpeg Apple Silicon SHA256: `e7b9fcd97f95f333512d6e8b8ac24d9dbc08f189f36047695499bd7b57214b22`
-- FFprobe Apple Silicon SHA256: `ded4c698b8ff38d0bc1fd30fcc5e768dc46f58bc15a8dfd61f98615ba49cde5c`
-- FFmpeg Intel SHA256: `62c87854d851f202fc4a29bdda0fe7b6ebcddd37b863482ce1bdc81151b03fe4`
-- FFprobe Intel SHA256: `d530823f480a3c7eb6334f18a00197d1e9f1070e86172b9aa89c4bf4022bd879`
+- Binary release and corresponding sources: https://github.com/eugeneware/ffmpeg-static/releases/tag/b6.1.1
+- FFmpeg project and source downloads: https://ffmpeg.org/
+- FFmpeg Apple Silicon SHA256: `a90e3db6a3fd35f6074b013f948b1aa45b31c6375489d39e572bea3f18336584`
+- FFprobe Apple Silicon SHA256: `bb2db6f5d8cef919da12fbf592119a987202a8c060a886f3cab091f9cab90b64`
+- FFmpeg Intel SHA256: `ebdddc936f61e14049a2d4b549a412b8a40deeff6540e58a9f2a2da9e6b18894`
+- FFprobe Intel SHA256: `fa3add0ce901f7241abe0dfc0155d958fc834aca3f8ce61f87cc712ae669c1e0`
 
 ## Python embedded runtime
 

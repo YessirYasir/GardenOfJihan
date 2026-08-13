@@ -14,18 +14,22 @@ MACHINE="$(uname -m)"
 case "$MACHINE" in
   arm64)
     ARCH_LABEL="Apple-Silicon"
-    FFMPEG_ASSET="ffmpeg-osx-arm64"
-    FFPROBE_ASSET="ffprobe-osx-arm64"
-    FFMPEG_SHA256="e7b9fcd97f95f333512d6e8b8ac24d9dbc08f189f36047695499bd7b57214b22"
-    FFPROBE_SHA256="ded4c698b8ff38d0bc1fd30fcc5e768dc46f58bc15a8dfd61f98615ba49cde5c"
+    FFMPEG_ASSET="ffmpeg-darwin-arm64"
+    FFPROBE_ASSET="ffprobe-darwin-arm64"
+    FFMPEG_LICENSE_ASSET="darwin-arm64.LICENSE"
+    FFMPEG_SHA256="a90e3db6a3fd35f6074b013f948b1aa45b31c6375489d39e572bea3f18336584"
+    FFPROBE_SHA256="bb2db6f5d8cef919da12fbf592119a987202a8c060a886f3cab091f9cab90b64"
+    FFMPEG_LICENSE_SHA256="cb48bf09a11f5fb576cddb0431c8f5ed0a60157a9ec942adffc13907cbe083f2"
     ONNX_VERSION="1.28.0"
     ;;
   x86_64)
     ARCH_LABEL="Intel"
-    FFMPEG_ASSET="ffmpeg-osx-x64"
-    FFPROBE_ASSET="ffprobe-osx-x64"
-    FFMPEG_SHA256="62c87854d851f202fc4a29bdda0fe7b6ebcddd37b863482ce1bdc81151b03fe4"
-    FFPROBE_SHA256="d530823f480a3c7eb6334f18a00197d1e9f1070e86172b9aa89c4bf4022bd879"
+    FFMPEG_ASSET="ffmpeg-darwin-x64"
+    FFPROBE_ASSET="ffprobe-darwin-x64"
+    FFMPEG_LICENSE_ASSET="darwin-x64.LICENSE"
+    FFMPEG_SHA256="ebdddc936f61e14049a2d4b549a412b8a40deeff6540e58a9f2a2da9e6b18894"
+    FFPROBE_SHA256="fa3add0ce901f7241abe0dfc0155d958fc834aca3f8ce61f87cc712ae669c1e0"
+    FFMPEG_LICENSE_SHA256="2e1d16c72fd74e12063776371da757322f8b77589386532f4fd8634bde7de1af"
     ONNX_VERSION="1.23.2"
     ;;
   *)
@@ -39,8 +43,8 @@ MEDIA_ROOT="$TOOLS_ROOT/media"
 MODEL_ROOT="$TOOLS_ROOT/models"
 PACKAGE_ROOT="$REPO_ROOT/dist/GardenOfJihan-macOS-$ARCH_LABEL"
 APP_PATH="$PACKAGE_ROOT/Garden of Jihan.app"
-RELEASE_TAG="n8.1.2-1"
-RELEASE_BASE="https://github.com/shaka-project/static-ffmpeg-binaries/releases/download/$RELEASE_TAG"
+RELEASE_TAG="b6.1.1"
+RELEASE_BASE="https://github.com/eugeneware/ffmpeg-static/releases/download/$RELEASE_TAG"
 mkdir -p "$MEDIA_ROOT" "$MODEL_ROOT" "$REPO_ROOT/dist"
 
 verify_download() {
@@ -64,6 +68,10 @@ verify_download() {
 
 verify_download "$MEDIA_ROOT/ffmpeg" "$FFMPEG_SHA256" "$RELEASE_BASE/$FFMPEG_ASSET"
 verify_download "$MEDIA_ROOT/ffprobe" "$FFPROBE_SHA256" "$RELEASE_BASE/$FFPROBE_ASSET"
+verify_download \
+  "$MEDIA_ROOT/FFMPEG-LICENSE.txt" \
+  "$FFMPEG_LICENSE_SHA256" \
+  "$RELEASE_BASE/$FFMPEG_LICENSE_ASSET"
 chmod 755 "$MEDIA_ROOT/ffmpeg" "$MEDIA_ROOT/ffprobe"
 
 "$PYTHON_BIN" -m pip install --disable-pip-version-check \
@@ -114,6 +122,7 @@ ditto "$REPO_ROOT/dist/Garden of Jihan.app" "$APP_PATH"
 /usr/bin/codesign --force --deep --sign - "$APP_PATH"
 cp "scripts/macos/START-HERE.txt" "$PACKAGE_ROOT/START-HERE.txt"
 cp README.md PRIVACY.md THIRD-PARTY-NOTICES.md "$PACKAGE_ROOT/"
+cp "$MEDIA_ROOT/FFMPEG-LICENSE.txt" "$PACKAGE_ROOT/FFMPEG-LICENSE.txt"
 
 SOURCE_REVISION="${GITHUB_SHA:-$(git rev-parse HEAD)}"
 cat > "$PACKAGE_ROOT/PACKAGE-INFO.json" <<EOF

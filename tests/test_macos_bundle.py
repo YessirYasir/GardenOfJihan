@@ -13,7 +13,9 @@ def test_macos_build_covers_both_architectures_and_pinned_media_tools():
 
     assert 'arm64)' in build
     assert 'x86_64)' in build
-    assert "n8.1.2-1" in build
+    assert "b6.1.1" in build
+    assert "FFMPEG-LICENSE.txt" in build
+    assert "eugeneware/ffmpeg-static" in build
     assert "FFMPEG_SHA256=" in build
     assert "FFPROBE_SHA256=" in build
     assert "shasum -a 256" in build
@@ -52,6 +54,7 @@ def test_public_macos_release_requires_developer_id_and_notarization():
     assert "Authority=Developer ID Application:" in verifier
     assert '"stapler", "validate"' in verifier
     assert '"/usr/sbin/spctl", "--assess"' in verifier
+    assert 'package / "FFMPEG-LICENSE.txt"' in verifier
 
 
 def test_private_macos_artifacts_are_short_lived_and_not_published():

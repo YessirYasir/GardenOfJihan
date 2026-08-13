@@ -50,6 +50,7 @@ def main() -> None:
         executable,
         info_path,
         package / "START-HERE.txt",
+        package / "FFMPEG-LICENSE.txt",
         package / "PACKAGE-INFO.json",
         manifest,
     )
