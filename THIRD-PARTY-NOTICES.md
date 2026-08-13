@@ -21,6 +21,20 @@ The Windows ZIP also contains `FFMPEG-LICENSE.txt` and
 `FFMPEG-BUILD-INFO.txt`, copied unchanged from the checksum-verified binary
 archive.
 
+The Mac packages bundle native `ffmpeg` and `ffprobe` binaries from the
+eugeneware static FFmpeg release `b6.1.1`, whose Mac builds include libass for
+styled subtitle rendering. Each architecture and its accompanying license are
+downloaded through HTTPS and accepted only after their exact SHA256 digests
+match the values pinned in `scripts/build-macos.sh`. `FFMPEG-LICENSE.txt` is
+included in every Mac handoff.
+
+- Binary release and corresponding sources: https://github.com/eugeneware/ffmpeg-static/releases/tag/b6.1.1
+- FFmpeg project and source downloads: https://ffmpeg.org/
+- FFmpeg Apple Silicon SHA256: `a90e3db6a3fd35f6074b013f948b1aa45b31c6375489d39e572bea3f18336584`
+- FFprobe Apple Silicon SHA256: `bb2db6f5d8cef919da12fbf592119a987202a8c060a886f3cab091f9cab90b64`
+- FFmpeg Intel SHA256: `ebdddc936f61e14049a2d4b549a412b8a40deeff6540e58a9f2a2da9e6b18894`
+- FFprobe Intel SHA256: `fa3add0ce901f7241abe0dfc0155d958fc834aca3f8ce61f87cc712ae669c1e0`
+
 ## Python embedded runtime
 
 The private portable browser bundle contains the official CPython 3.12.10

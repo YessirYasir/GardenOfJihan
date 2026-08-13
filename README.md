@@ -2,7 +2,27 @@
 
 ![Garden of Jihan design target](docs/design-preview.svg)
 
-Garden of Jihan is a free, open-source, **local-first Windows application** that turns long-form video into ranked short-form clip candidates through a calm browser-style interface.
+Garden of Jihan is a free, open-source, **local-first Windows and macOS application** that turns long-form video into ranked short-form clip candidates through a calm browser-style interface.
+
+## Mac release status
+
+Garden of Jihan now builds the same self-contained local browser experience for both Apple Silicon and Intel Macs running macOS 14 or newer. The recipient opens `Garden of Jihan.app`; no separate language runtime, media program, account, subscription, credits, or paid service is required. Private validation artifacts are short-lived and are not published as official downloads.
+
+Public Mac downloads are allowed only after the app is signed with an Apple Developer ID, submitted successfully to Apple's notarization service, stapled with the resulting ticket, and accepted by Gatekeeper on both architectures. The GitHub workflow fails closed when those requirements or signing values are absent.
+
+Build and validate on the matching Mac architecture:
+
+```bash
+./scripts/build-macos.sh
+python3 scripts/package-macos.py \
+  --package-root "dist/GardenOfJihan-macOS-Apple-Silicon" \
+  --archive "dist/GardenOfJihan-macOS-Apple-Silicon.zip"
+python3 scripts/verify-macos-package.py \
+  --package-root "dist/GardenOfJihan-macOS-Apple-Silicon" \
+  --architecture arm64
+python3 scripts/smoke-macos-package.py \
+  --package-root "dist/GardenOfJihan-macOS-Apple-Silicon"
+```
 
 ## Windows release status
 
@@ -92,6 +112,7 @@ Garden of Jihan is designed as local software, not an internet-facing web servic
 - Microsoft Defender Antivirus scan before release
 - SHA256 checksum and GitHub build-provenance attestation for release artifacts
 - Public release workflow requires a valid Authenticode signature
+- Public Mac release workflow requires Apple Developer ID signing and notarization
 
 The optional local meaning pass uses the MIT-licensed `intfloat/multilingual-e5-small` model through CPU-only ONNX inference. It adjusts a bounded 10% of the candidate score for within-clip topic coherence and uses semantic similarity to reduce paraphrased repeats. The original base ranking remains available when the model cannot load. Low-resource-language performance, especially Somali varieties, must pass the licensed evaluation framework before release-quality claims are made. See [`docs/SEMANTIC_MODEL.md`](docs/SEMANTIC_MODEL.md).
 

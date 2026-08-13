@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "garden-of-jihan"
 version = "0.1.0"
-description = "Local-first long-form video clipping for Windows with multilingual and Qur'an-aware workflows."
+description = "Local-first long-form video clipping for Windows and macOS with multilingual and Qur'an-aware workflows."
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
 license = {text = "MIT"}
@@ -33,6 +33,10 @@ dev = [
   "pip-audit>=2.8,<3",
 ]
 windows = [
+  "pyinstaller>=6.11,<7",
+  "pillow>=11,<13",
+]
+macos = [
   "pyinstaller>=6.11,<7",
   "pillow>=11,<13",
 ]
