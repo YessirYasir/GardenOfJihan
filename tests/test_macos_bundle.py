@@ -63,3 +63,10 @@ def test_private_macos_artifacts_are_short_lived_and_not_published():
     assert "github.event_name == 'workflow_dispatch'" in workflow
     assert "retention-days: 2" in workflow
     assert "startsWith(github.ref, 'refs/tags/v')" in workflow
+
+
+def test_macos_smoke_compares_health_values_not_object_identity():
+    smoke = read("scripts/smoke-macos-package.py")
+
+    assert "health.get(key) != expected" in smoke
+    assert "health.get(key) is not expected" not in smoke

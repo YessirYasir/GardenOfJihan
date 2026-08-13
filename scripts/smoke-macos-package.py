@@ -71,7 +71,7 @@ def main() -> None:
                 except (OSError, URLError):
                     time.sleep(0.5)
             if not health or any(
-                health.get(key) is not expected
+                health.get(key) != expected
                 for key, expected in {
                     "ok": True,
                     "local": True,
