@@ -79,7 +79,7 @@ jobs:
           Get-Content "dist\GardenOfJihan-Windows-x64.sha256"
 
       - name: Attest release build provenance
-        uses: actions/attest-build-provenance@v3
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: dist/GardenOfJihan-Windows-x64.zip
 
