@@ -5,7 +5,7 @@ fastembed==0.8.0
 faster-whisper==1.2.1
 huggingface-hub==1.27.0
 numpy==2.5.2
-opencv-python-headless==4.14.0.94
+opencv-python-headless==5.0.0.93
 pillow==12.3.0
 pip-audit==2.10.1
 pydantic==2.13.4
